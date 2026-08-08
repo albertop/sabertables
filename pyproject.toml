@@ -135,3 +135,20 @@ disable_error_code = ["assignment", "arg-type"]
 # loguru acepta FileHandler donde el stub declara StreamHandler.
 module = ["cli"]
 disable_error_code = ["arg-type"]
+
+[tool.coverage.run]
+branch = false
+source = ["app", "utils"]
+
+[tool.coverage.report]
+# Las UNICAS exclusiones, y todas son convencionales. Nada de silenciar codigo
+# que se resista a probarse: si algo no esta cubierto, sale en el informe.
+exclude_lines = [
+    "pragma: no cover",
+    # El guardia de arranque. Su cuerpo (sys.exit(_cli())) no se ejecuta nunca
+    # bajo pytest porque el modulo se importa, no se lanza.
+    'if __name__ == .__main__.:',
+    # Solo existe para el analizador de tipos; en ejecucion es siempre falso.
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
