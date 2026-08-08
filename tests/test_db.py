@@ -5,7 +5,6 @@ No abre ninguna conexion: comprueba la cadena que se construye, que es donde
 estuvo el fallo que hizo que el nombre de servidor se ignorara en silencio
 durante meses.
 """
-import os
 
 import db
 import pytest

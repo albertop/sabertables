@@ -11,8 +11,8 @@ falla en produccion.
 """
 import pandas as pd
 import pytest
-from app.validators.data_validator import sanitize_error_message, validate_dataframe_schema
 
+from app.validators.data_validator import sanitize_error_message, validate_dataframe_schema
 
 # ---------------------------------------------------------------------------
 # El contrato de esquema

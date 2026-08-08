@@ -15,7 +15,6 @@ import pandas as pd
 import pytest
 import seasons
 
-
 # ---------------------------------------------------------------------------
 # Los marcadores de temporada
 # ---------------------------------------------------------------------------
@@ -40,11 +39,11 @@ def test_una_consulta_sin_marcadores_se_queda_igual():
 # ---------------------------------------------------------------------------
 
 def _dataset(**kw):
-    base = dict(
-        key="prueba", title="Prueba", query="SELECT 1",
-        output="prueba.parquet",
-        dtypes={"season": "int32", "n": "int32", "run_value": "float32"},
-    )
+    base = {
+        "key": "prueba", "title": "Prueba", "query": "SELECT 1",
+        "output": "prueba.parquet",
+        "dtypes": {"season": "int32", "n": "int32", "run_value": "float32"},
+    }
     base.update(kw)
     return extract.Dataset(**base)
 
@@ -226,7 +225,7 @@ def test_un_fichero_vacio_tampoco_se_promueve(tmp_path):
     (staging / "vacio.parquet").write_bytes(b"")
     final.mkdir()
 
-    with pytest.raises(RuntimeError, match="[Vv]acio"):
+    with pytest.raises(RuntimeError, match=r"[Vv]acio"):
         extract._promote_staging(staging, final, ["a.parquet", "vacio.parquet"])
 
 
@@ -346,8 +345,10 @@ def test_un_manifiesto_corrupto_no_tumba_la_extraccion(tmp_path, caplog):
 
 
 def test_el_hash_cambia_con_el_contenido(tmp_path):
-    a = tmp_path / "a"; a.write_bytes(b"uno")
-    b = tmp_path / "b"; b.write_bytes(b"dos")
+    a = tmp_path / "a"
+    a.write_bytes(b"uno")
+    b = tmp_path / "b"
+    b.write_bytes(b"dos")
 
     assert extract._sha256(a) != extract._sha256(b)
     assert extract._sha256(a) == extract._sha256(a)

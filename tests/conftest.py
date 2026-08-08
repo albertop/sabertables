@@ -9,9 +9,9 @@ ya publicados.
 """
 import os
 import sys
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 UTILS = Path(__file__).resolve().parent.parent / "utils"
 if str(UTILS) not in sys.path:

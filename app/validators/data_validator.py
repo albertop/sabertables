@@ -4,7 +4,6 @@ Data validation functions for Run Expectancy Tables.
 import re
 
 import pandas as pd
-from loguru import logger
 
 
 def sanitize_error_message(error_msg: str, is_production: bool = False) -> str:

@@ -8,8 +8,9 @@ ponderada, una rama distinta a la de temporada suelta-- y las rutas de error.
 """
 import pandas as pd
 import pytest
-from app.services import table_generator as tg
 from fastapi.testclient import TestClient
+
+from app.services import table_generator as tg
 
 # Los datasets que usan estos tests. Hay que pedirlos EXPLICITAMENTE: la
 # aplicacion los carga de forma perezosa, en la primera peticion que los
@@ -360,10 +361,8 @@ def test_sin_datos_las_frecuencias_re288_lo_dicen(datos):
         tg.generate_re288_frequencies_table(datos, 1850, 1851)
 
 
-def test_sin_datos_las_transiciones_re24_dicen_los_filtros(datos, temporadas):
+def test_sin_datos_las_transiciones_re24_dicen_los_filtros(datos):
     """El mensaje lleva from_outs y event_cd: son los dos que pudo elegir mal."""
-    _, hi = temporadas
-
     with pytest.raises(ValueError, match="from_outs=2"):
         tg.generate_re24_transitions_table(datos, 1850, 1851, 2, -1, 1)
 

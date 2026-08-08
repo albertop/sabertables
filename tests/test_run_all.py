@@ -142,7 +142,6 @@ def test_el_rango_de_temporadas_se_fija_antes_de_los_pasos(pasos, monkeypatch):
     esta via. Tiene que estar aqui.
     """
     vistos = []
-    ejecutados, _ = pasos
 
     import extract_re_data
     monkeypatch.setattr(extract_re_data, "extract_and_save_data",
