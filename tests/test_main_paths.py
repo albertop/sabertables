@@ -393,3 +393,226 @@ def test_healthz_no_se_cachea_nunca(client):
     r = client.get("/healthz")
 
     assert "no-store" in r.headers["cache-control"]
+
+
+# ---------------------------------------------------------------------------
+# Parametros obligatorios de cada tabla
+#
+# Cada uno responde 400 diciendo QUE falta. Un "no hay datos" generico haria
+# buscar el problema en la temporada elegida en vez de en el parametro.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("tipo", ["WIN_EXPECTANCY", "WIN_PROBABILITY_ADDED", "LEVERAGE_INDEX"])
+def test_las_tablas_por_entrada_exigen_el_equipo(client, tipo):
+    r = client.post("/api/generate-table", json={
+        "matrix_type": tipo, "from_season": 2024, "to_season": 2024,
+    })
+
+    assert r.status_code == 400
+    assert "eam" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("faltante,payload", [
+    ("Outs", {}),
+    ("Event code", {"re24_transitions_outs": 0}),
+    ("Value type", {"re24_transitions_outs": 0, "event_cd": -1}),
+])
+def test_las_transiciones_re24_exigen_sus_tres_parametros(client, faltante, payload):
+    """
+    Se comprueban en orden, asi que el mensaje senala el PRIMERO que falta y no
+    los tres a la vez.
+    """
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE24_TRANSITIONS", "from_season": 2024, "to_season": 2024,
+        **payload,
+    })
+
+    assert r.status_code == 400
+    assert faltante in r.json()["detail"]
+
+
+def test_re288_transitions_exige_el_tipo_de_transicion(client):
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE288_TRANS", "from_season": 2024, "to_season": 2024,
+    })
+
+    assert r.status_code == 400
+
+
+def test_re_impact_exige_el_tipo_de_analisis(client):
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE_IMPACT", "from_season": 2024, "to_season": 2024,
+    })
+
+    assert r.status_code == 400
+    assert "analysis_type" in r.json()["detail"]
+
+
+def test_breakeven_points_sin_tipo_devuelve_el_conjunto_completo(client):
+    """
+    A diferencia de las demas, esta NO exige el tipo: sin el sirve todo y el
+    frontend filtra. Se fija aqui para que un cambio a "obligatorio" no rompa la
+    tabla en silencio.
+    """
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "BREAKEVEN_POINTS", "from_season": 2024, "to_season": 2024,
+    })
+
+    assert r.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# RE Impact: cada analisis filtra y limpia sus propias columnas
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("analisis", [
+    "sac_bunt", "ibb", "ph_position", "ph_pitcher", "platoon_baseline", "tto",
+])
+def test_cada_analisis_de_re_impact_devuelve_sus_filas(client, analisis):
+    """
+    Cada uno se queda con su `type` y tira las columnas que no le aplican. Si
+    una se colara, el frontend pintaria una columna vacia sin decir por que.
+    """
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE_IMPACT", "from_season": 2024, "to_season": 2024,
+        "analysis_type": analisis,
+    })
+
+    assert r.status_code == 200
+    datos = r.json()
+    assert datos["table_data"], f"{analisis} sin filas"
+    assert datos["analysis_type"] == analisis
+
+
+def test_los_dos_analisis_de_bateador_emergente_son_distintos(client):
+    """
+    ph_position y ph_pitcher salen de la misma tabla y se separan por una
+    columna. Si el filtro fallara, los dos mostrarian lo mismo -- y el de
+    lanzadores, que ademas termina en 2021 por el DH universal, pasaria por
+    actual.
+    """
+    def pedir(analisis):
+        return client.post("/api/generate-table", json={
+            "matrix_type": "RE_IMPACT", "from_season": 2024, "to_season": 2024,
+            "analysis_type": analisis,
+        }).json()
+
+    posicion = pedir("ph_position")
+    lanzador = pedir("ph_pitcher")
+
+    assert posicion != lanzador
+
+
+# ---------------------------------------------------------------------------
+# Errores al generar una tabla
+# ---------------------------------------------------------------------------
+
+def test_un_error_de_datos_se_convierte_en_400_y_no_en_500(client):
+    """
+    "No hay datos para ese rango" es culpa de lo que se pidio, no del servidor.
+    Un 500 haria buscar el problema en el sitio equivocado.
+    """
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE24", "from_season": 1912, "to_season": 1912,
+        "event_cd": 999,
+    })
+
+    assert r.status_code == 400
+
+
+def test_el_mensaje_de_error_no_regala_rutas_del_servidor(client, monkeypatch):
+    """
+    Se sanea antes de responder: una ruta absoluta le dice a un desconocido como
+    esta montado el servidor y con que usuario corre.
+    """
+    import app.main as m
+
+    def revienta(*a, **k):
+        raise ValueError(r"fallo leyendo C:\Users\aperd\app\data\re24_values.parquet")
+
+    monkeypatch.setattr(m, "generate_re24_table", revienta)
+
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE24", "from_season": 2024, "to_season": 2024,
+    })
+
+    assert r.status_code == 400
+    assert "aperd" not in r.json()["detail"]
+
+
+def test_un_error_inesperado_no_cuenta_nada_de_dentro(client, monkeypatch):
+    """
+    Un fallo que no sea de datos es un 500 con mensaje generico: el detalle va
+    al log, no a la respuesta.
+    """
+    import app.main as m
+
+    def revienta(*a, **k):
+        raise RuntimeError("KeyError en la fila 3 de re24_values")
+
+    monkeypatch.setattr(m, "generate_re24_table", revienta)
+
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE24", "from_season": 2024, "to_season": 2024,
+    })
+
+    assert r.status_code == 500
+    detalle = r.json()["detail"]
+    assert "re24_values" not in detalle
+    assert "KeyError" not in detalle
+
+
+# ---------------------------------------------------------------------------
+# Arranque
+# ---------------------------------------------------------------------------
+
+def test_sin_marca_de_frescura_la_app_arranca_igual(monkeypatch, tmp_path):
+    """
+    last_updated.json falta en un despliegue a medias. No arrancar por eso
+    dejaria el sitio caido por un fichero informativo.
+    """
+    import shutil
+
+    import app.main as m
+
+    # Se copia el directorio entero y se quita SOLO la marca: enumerar a mano
+    # lo que carga el arranque haria que este test fallara cada vez que se
+    # anadiera un dataset, por una razon que no tiene que ver con lo que prueba.
+    copia = tmp_path / "data"
+    shutil.copytree(m.DATA_DIR, copia)
+    (copia / "last_updated.json").unlink()
+    monkeypatch.setattr(m, "DATA_DIR", copia)
+
+    m.load_essential_data()
+
+    assert m.data_store["last_updated"] == {"last_updated_utc": None}
+
+
+def test_si_falta_un_parquet_esencial_la_app_no_arranca(monkeypatch, tmp_path):
+    """
+    Arrancar sin datos deja un sitio que responde 200 y no sirve ni una tabla.
+    Mejor no levantarse: el healthcheck del contenedor lo reintenta.
+    """
+    import app.main as m
+
+    monkeypatch.setattr(m, "DATA_DIR", tmp_path)
+
+    with pytest.raises(Exception):
+        m.load_essential_data()
+
+
+# ---------------------------------------------------------------------------
+# El accesor de datasets
+# ---------------------------------------------------------------------------
+
+def test_si_un_dataset_quedo_a_medias_se_falla_al_pedirlo(client, monkeypatch):
+    """
+    Sin esto un None viaja y revienta mas adelante con un AttributeError que no
+    dice de que dataset venia.
+    """
+    import app.main as m
+
+    monkeypatch.setitem(m.data_store, "re24", "esto no es un DataFrame")
+
+    with pytest.raises(Exception, match="re24"):
+        m.dataset("re24")
