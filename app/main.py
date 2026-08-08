@@ -1006,7 +1006,7 @@ def asset_version() -> str:
     return _asset_version_cache["value"]
 
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 # Pydantic models with validation
@@ -1035,15 +1035,10 @@ class TableRequest(BaseModel):
     analysis_type: str | None = Field(None, pattern="^(sac_bunt|ibb|ph_position|ph_pitcher|platoon_baseline|tto)$", description="Analysis type for RE_IMPACT (sac_bunt, ibb, ph_position, ph_pitcher, platoon_baseline, tto)")
 
 
-    @field_validator('from_season', 'to_season')
-    @classmethod
-    def validate_season_range_safe(cls, v: int) -> int:
-        """Validate season is within safe integer range."""
-        MAX_SAFE_INT = 2**31 - 1
-        MIN_SAFE_INT = -(2**31)
-        if v < MIN_SAFE_INT or v > MAX_SAFE_INT:
-            raise ValueError("Season value is out of valid range")
-        return v
+    # Aqui habia un validador que comprobaba que la temporada cabe en un int32.
+    # No podia disparar NUNCA: los campos ya declaran ge=1800, le=2100, que es
+    # mucho mas estricto, y en Pydantic esas cotas se aplican ANTES que el
+    # validador. Aparentaba una proteccion que no hacia ningun trabajo.
 
 
 def validate_season_range(from_season: int, to_season: int, matrix_type: str) -> None:

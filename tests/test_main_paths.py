@@ -364,8 +364,9 @@ def test_sin_directorio_de_datos_healthz_devuelve_503(client, monkeypatch):
     Es lo que hace que el monitor avise. Antes devolvia 200 siempre mientras el
     proceso estuviera vivo, o sea que un despliegue sin datos se veia sano.
     """
-    import app.main as m
     from pathlib import Path
+
+    import app.main as m
 
     monkeypatch.setattr(m, "DATA_DIR", Path("/directorio/que/no/existe"))
 
@@ -597,7 +598,7 @@ def test_si_falta_un_parquet_esencial_la_app_no_arranca(monkeypatch, tmp_path):
 
     monkeypatch.setattr(m, "DATA_DIR", tmp_path)
 
-    with pytest.raises(Exception):
+    with pytest.raises(FileNotFoundError):
         m.load_essential_data()
 
 
