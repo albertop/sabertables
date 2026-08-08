@@ -7,6 +7,13 @@ esto.
 Orden: primero lo que bloquea reconstruir o confiar en el pipeline, después las
 decisiones de modelado, y al final la higiene.
 
+**El proyecto ya está en git** (`github.com/albertop/sabertables`, privado) desde
+el 8 de agosto de 2026. Varios puntos de abajo se escribieron cuando no lo
+estaba, y hablan de mover cosas a `_not_in_use/` en vez de borrarlas o de
+validar un refactor regenerando el pipeline entero. **Eso era la falta de red de
+seguridad, no una norma**: hoy borrar es reversible. Se dejan como registro de
+cómo se trabajó entonces.
+
 Para reconstruir todo en orden:
 
 ```bash
@@ -1901,50 +1908,54 @@ anota como nota de diseño para cuando se añada la próxima familia de tablas.
 ---
 ## 7. Infraestructura
 
-### 7.1 Mover el proyecto a git y GitHub — PENDIENTE
+### 7.1 Mover el proyecto a git y GitHub — RESUELTO (8 ago 2026)
 
-Hoy **no está en git**, y eso ha condicionado la forma de trabajar toda la
-revisión: por eso lo que se retira va a `_not_in_use/` en vez de borrarse, por eso
-cada refactor se validó con el pipeline completo y diff byte a byte, y por eso se
-hizo copia de seguridad antes del rename.
+En `https://github.com/albertop/sabertables`, **privado**. Un commit,
+112 ficheros, 17,1 MB.
 
-Con git, varias cosas dejan de necesitar ceremonia:
+**Las tres decisiones que este punto pedía tomar:**
 
-- Borrar de verdad en vez de mover a `_not_in_use/`, que ya acumula vistas SQL
-  muertas, datos huérfanos y revisiones anuladas.
-- Revertir un cambio sin regenerar parquets para comprobar que no se rompió nada.
-- Ver *cuándo* y *por qué* entró una línea — media sesión se fue en reconstruir
-  intenciones a partir del código, como el `== "RE288"` duplicado o el
-  `max_request_size` que no existía.
+| decisión | resultado |
+|---|---|
+| Qué no se sube | `.env`, `.venv/`, `docker_images/`, `_not_in_use/` y las cachés de mypy, ruff y pytest |
+| Público o privado | **Privado** |
+| `app/data/` | **Sí se versiona** — al revés de lo que este punto daba por hecho |
 
-**Qué hay que decidir antes:**
+**Por qué se cambió de opinión con `app/data/`.** Este documento decía que los
+parquets quedaban fuera, y añadía: *"sin acceso a la base un clon no puede
+regenerarlos, así que hay que documentarlo"*. Al llegar aquí, esa misma frase era
+el argumento contrario: si un clon no puede regenerarlos, razón de más para
+versionarlos. Son 14 MB, hacen que un clon arranque sin tocar SQL Server, y —lo
+que más pesa— **eran la única copia de los datos generados**. No había ninguna
+copia de seguridad: si se perdía el disco, se perdían.
 
-- **Qué NO se sube.** `.gitignore` ya escrito. **No hay ningún secreto en el
-  repositorio**, comprobado: `.env` tiene 8 claves y todas son configuración
-  —`ENVIRONMENT`, `HOST`, `PORT`, `WORKERS`, `LOG_LEVEL`, `LOG_RETENTION_DAYS`,
-  `RATE_LIMIT`, `PRODUCTION_ORIGIN`—, ninguna credencial. `utils/db.py` lee
-  `DGL_SQL_USER` / `DGL_SQL_PASSWORD` del entorno, pero no están definidas: la
-  conexión va por autenticación de Windows (`Trusted_Connection=yes`).
+El pipeline corre una o dos veces al año, así que el historial crece unos 28 MB
+anuales. Nada para lo que GitHub admite.
 
-  Aun así `.env` se ignora, porque es configuración por máquina —el de esta dice
-  `ENVIRONMENT=production`, que no es lo que quiere un clon— y porque el día que
-  se use usuario y contraseña ya estará fuera. Conviene subir un `.env.example`
-  con las claves y sin valores.
+**Lo que se preparó antes del primer commit:**
 
-  También fuera: `app/data/` (13.3 MB de parquets regenerables con
-  `python utils/run_all.py`; sin acceso a la base un clon no puede regenerarlos,
-  así que hay que documentarlo), `docker_images/` y `.venv/`.
-- **Público o privado.** El site es público, pero el `.env`, la cadena de
-  conexión y las consultas a `dbo.*` describen infraestructura propia.
-- **`_not_in_use/` NO se sube** (decidido). Existe solo porque hoy no hay red de
-  seguridad: es donde han ido las vistas SQL muertas, `ph_values.parquet`
-  (24.5 MB huérfanos) y la revisión v03 anulada. Con git el histórico lo cubre,
-  así que va al `.gitignore` y se puede borrar del disco cuando quieras.
+- **`.gitignore` ampliado** con `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/`,
+  `.coverage`, `htmlcov/`, `logs/` y `*.log`. `.mypy_cache` son **63 MB** que,
+  sin esa línea, entran en el primer commit y **ya no salen del historial** sin
+  reescribirlo entero.
+- **`.env.example`** con las 11 claves reales más las de base de datos. Se
+  verificó que no falta ninguna de las que lee el código.
+- **`.gitattributes`** para los finales de línea, con `*.ps1` en CRLF.
 
-**Cuando esté hecho, quitar de este documento la regla de mover a `_not_in_use/`
-en vez de borrar**, y la nota de que las validaciones extra existen porque no hay
-red de seguridad.
+**Comprobado que no hay secretos**, y no dando por buena la lectura del
+`.gitignore`: `git check-ignore` confirma que `.env` está fuera, y tras el push
+se verificó contra el remoto que de ese fichero solo está `.env.example`. Un
+barrido del repositorio no encontró claves privadas, tokens ni contraseñas. La
+conexión a SQL Server va por autenticación integrada de Windows.
 
+**Lo que este punto encargaba al terminar**, y queda hecho: se retira de este
+documento la regla de mover a `_not_in_use/` en vez de borrar. Con historial,
+borrar es reversible. Las menciones a `_not_in_use/` que quedan en puntos
+anteriores son **registro de lo que se hizo entonces**, no instrucciones
+vigentes.
+
+`_not_in_use/` no se subió: son 25 MB que viven solo en el disco. Se puede
+vaciar cuando quieras.
 
 ### 7.2 Evaluar el SEO del sitio — AUDITADO Y CORREGIDO; lo que queda, PRIORIDAD MUY BAJA (decidido el 8 ago 2026)
 
