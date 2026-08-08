@@ -2193,35 +2193,26 @@ def save_re_impact(rows: list, data_dir: Path) -> pd.DataFrame:
         "season", "type", "scenario", "label", "outs", "delta_re",
         "baseline_re", "delta_re_pct", "n", "platoon", "handedness_split", "tto_pass"
     ]
+    # reindex CREA todas las columnas de keep_cols, las traigan las filas o
+    # no. Aqui habia seis `if "x" not in df.columns` justo despues, uno por
+    # columna opcional, y ninguno podia ejecutarse: reindex ya las garantiza.
     df = df.reindex(columns=keep_cols)
 
     df["season"]   = df["season"].astype("int16")
     df["type"]     = df["type"].astype("string")
     df["scenario"] = df["scenario"].astype("string")
     # Label is used by the frontend for row display; keep schema explicit.
-    if "label" not in df.columns:
-        df["label"] = df["scenario"]
     df["label"] = df["label"].astype("string")
     df["outs"]     = df["outs"].astype("uint8")
     df["delta_re"] = df["delta_re"].astype("Float32")  # Nullable float for pd.NA support
-    if "baseline_re" not in df.columns:
-        df["baseline_re"] = pd.NA
     df["baseline_re"] = df["baseline_re"].astype("Float32")
-    if "delta_re_pct" not in df.columns:
-        df["delta_re_pct"] = pd.NA
     df["delta_re_pct"] = df["delta_re_pct"].astype("Float32")
     df["n"]        = df["n"].astype("int32")
     # platoon populated for PH rows only; NaN for all other types
-    if "platoon" not in df.columns:
-        df["platoon"] = pd.NA
     df["platoon"] = df["platoon"].astype("boolean")
     # Optional split label for handedness-based impact rows.
-    if "handedness_split" not in df.columns:
-        df["handedness_split"] = pd.NA
     df["handedness_split"] = df["handedness_split"].astype("string")
     # Optional TTO pass label for tto rows.
-    if "tto_pass" not in df.columns:
-        df["tto_pass"] = pd.NA
     df["tto_pass"] = df["tto_pass"].astype("string")
     output_file = data_dir / "re_impact.parquet"
     # La clave incluye handedness_split y tto_pass porque sin ellas no identifica

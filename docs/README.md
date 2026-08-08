@@ -98,7 +98,7 @@ app/            la aplicación web (es lo único que entra en la imagen Docker)
   templates/    index.html
   services/     generación de tablas
 utils/          el pipeline y el DDL de las vistas
-tests/          327 tests
+tests/          668 tests, 100% de cobertura
 docs/           esto
 docker_images/  los .tar generados (no sube a git ni a la imagen)
 _not_in_use/    lo retirado que no se quiso borrar (no sube a git)
@@ -110,7 +110,7 @@ _not_in_use/    lo retirado que no se quiso borrar (no sube a git)
 python -m pytest tests/ -q && python -m ruff check . && python -m mypy .
 ```
 
-**327 tests.** Se trabaja con TDD, y con cuatro reglas más que este proyecto
+**668 tests, 100% de cobertura.** Se trabaja con TDD, y con cuatro reglas más que este proyecto
 añade —verificación por mutación, medir antes de escribir el test, validar toda
 corrección contra los datos, y cubrir lo que falla en silencio—. Están en
 **[REGLAS_DESARROLLO.md](REGLAS_DESARROLLO.md)**, cada una con la cicatriz que

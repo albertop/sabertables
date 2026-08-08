@@ -31,15 +31,23 @@ Python local: 3.14. La imagen de producción usa 3.13.
 python -m pytest tests/ -q
 ```
 
-**327 tests**, en cinco ficheros:
+**668 tests**, con **100% de cobertura** y sin una sola exclusión:
 
 | fichero | qué cubre |
 |---|---|
-| `test_calculations.py` | La lógica de cálculo de `utils/`, con entradas construidas a mano. No toca la base ni los parquets. |
-| `test_data_invariants.py` | Los parquets ya generados: rangos, esquemas y el **contrato de esquema con la aplicación**. |
-| `test_api_regression.py` | Las rutas, la seguridad, la paginación, las descargas y el SEO. |
+| `test_calculations.py` | La lógica de cálculo de `utils/`, con entradas construidas a mano. |
+| `test_data_invariants.py` | Los parquets generados: rangos, esquemas y el **contrato con la aplicación**. |
+| `test_api_regression.py` | Rutas, seguridad, paginación, descargas y SEO. |
+| `test_main_paths.py` | Rutas de error de la aplicación y lo que solo corre en producción. |
+| `test_table_generator.py` | Generación de tablas: multi-temporada y rutas de error. |
+| `test_break_even_io.py` | La frontera con SQL Server y la escritura de los parquets. |
+| `test_extract_re_data.py` | Tipado, staging y promoción del lote. |
 | `test_seasons.py` | El rango de temporadas y que ningún camino se lo salte. |
+| `test_db.py`, `test_validators.py`, `test_run_all.py`, `test_sync_sql_views.py` | Conexión, validadores y orquestación. |
 | `test_asset_version.py` | El cache-buster derivado del hash de los assets. |
+
+Ninguno abre una conexión a SQL Server: la frontera se prueba sustituyendo
+`_read_sql_view` y `pd.read_sql`, que son los dos puntos por los que pasa todo.
 
 ### Cómo se escriben los tests aquí
 
@@ -83,9 +91,14 @@ Dos trampas de mypy que costaron encontrar y están escritas allí:
 python -m pytest tests/ -q --cov=app --cov=utils --cov-report=term
 ```
 
-Hoy **67%**. Lo que falta es casi todo I/O: las funciones que hablan con SQL
-Server y las que escriben parquets. La lógica pura está cubierta. Subirlo de ahí
-exige decidir cómo se prueba la frontera con la base — ver 8.6 en [TODO.md](TODO.md).
+**100%**, los dieciséis módulos, sin ningún `pragma: no cover`.
+
+Llegar ahí destapó **ocho trozos de código que no podían ejecutarse nunca** y se
+borraron en vez de escribirles tests: tres funciones sin ningún uso, una lista de
+tipos duplicada dentro de un endpoint que Pydantic ya validaba, un validador de
+rango que las cotas del campo hacían imposible, y seis comprobaciones de columnas
+que un `reindex` anterior ya garantizaba. Perseguir el número sirvió sobre todo
+para eso.
 
 ## El contenedor de prueba
 

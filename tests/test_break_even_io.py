@@ -15,7 +15,6 @@ import create_break_even_points as be
 import pandas as pd
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Lectura de las matrices
 # ---------------------------------------------------------------------------
@@ -84,7 +83,7 @@ def test_los_valores_de_ibb_salen_de_la_matriz_re24(tmp_path):
 
 
 def test_sin_la_matriz_re24_no_hay_valores_de_ibb(tmp_path):
-    with pytest.raises(Exception):
+    with pytest.raises(FileNotFoundError):
         be.load_ibb_real_values(tmp_path)
 
 
@@ -399,10 +398,11 @@ def vistas(monkeypatch):
     Intercepta _read_sql_view. `respuestas` mapea un trozo del nombre de la
     vista al DataFrame que devolvera; `consultadas` recoge lo que se pidio.
     """
-    estado = {"respuestas": {}, "consultadas": []}
+    estado = {"respuestas": {}, "consultadas": [], "consultas": []}
 
     def falso(engine, query, view_name, por_lanzamiento=False):
         estado["consultadas"].append(view_name)
+        estado["consultas"].append(query)
         # Coincidencia EXACTA primero y subcadena despues.
         #
         # Con subcadena a secas, "v_re_analysis_bunt" tambien casa con
@@ -489,6 +489,11 @@ def test_el_toque_consulta_sus_TRES_vistas(vistas):
     assert "v_re_analysis_bunt" in consultadas
     assert "batter_effect" in consultadas
     assert "weights" in consultadas
+
+    # Y con CONSULTAS distintas, no solo con nombres distintos: mandar la
+    # consulta equivocada a la vista con el nombre correcto daria un resultado
+    # plausible y calculado sobre otra cosa.
+    assert len(set(vistas["consultas"])) == 3
 
 
 def test_swing_take_consulta_con_el_tope_de_temporada(vistas):
@@ -593,8 +598,13 @@ def pipeline_falso(monkeypatch, tmp_path):
     RE24, la validacion de rango y las tres escrituras, que es lo que se quiere
     ver funcionando junto.
     """
+    import seasons as _s
+
+    # La temporada del TECHO: el resumen final de main() muestra una muestra de
+    # seasons.MAX_SEASON, asi que con 2024 esa parte no encontraria nada.
+    anio = _s.MAX_SEASON
     matriz = pd.DataFrame([
-        {"season": 2024, "outs": o, "runners": r, "run_value": rv, "n": 5000,
+        {"season": anio, "outs": o, "runners": r, "run_value": rv, "n": 5000,
          "event_cd": cd}
         for o in (0, 1, 2)
         for r, rv in (("000", 0.48), ("100", 0.85), ("010", 1.05), ("001", 1.35),
@@ -609,19 +619,24 @@ def pipeline_falso(monkeypatch, tmp_path):
     VALOR = {"000": 0.48, "100": 0.85, "010": 1.05, "001": 1.35,
              "110": 1.45, "101": 1.75, "011": 1.95, "111": 2.25}
     pd.DataFrame([
-        {"season": 2024, "outs": o, "runners": r, "count": c,
+        {"season": anio, "outs": o, "runners": r, "count": c,
          "run_value": VALOR[r] * (1 - 0.25 * o), "n": 5000}
         for o in (0, 1, 2, 3) for r in VALOR for c in ("0-0", "3-2")
     ]).to_parquet(tmp_path / "re288_values.parquet", index=False)
 
     def be_falso(*a, **k):
-        return [{"season": 2024, "type": "stealing", "scenario": "esc",
+        return [{"season": anio, "type": "stealing", "scenario": "esc",
                  "label": "Esc", "outs": 0, "breakeven_pct": 0.7, "n": 1000}]
 
     def impacto_falso(*a, **k):
-        return [{"season": 2024, "type": "ibb", "scenario": "010",
-                 "label": "Runner on 2B", "outs": 1, "delta_re": 0.5,
-                 "baseline_re": 0.7, "delta_re_pct": 0.7, "n": 1000}]
+        # Un tipo distinto por cargador, para que el resumen final encuentre
+        # muestra de ph_position y ph_pitcher ademas de la de IBB.
+        return [
+            {"season": anio, "type": t, "scenario": "010",
+             "label": "Runner on 2B", "outs": 1, "delta_re": 0.5,
+             "baseline_re": 0.7, "delta_re_pct": 0.7, "n": 1000}
+            for t in ("ibb", "ph_position", "ph_pitcher")
+        ]
 
     for nombre in ("load_stretch_break_even_rows_from_db",
                    "load_advance_break_even_rows_from_db",
@@ -702,3 +717,438 @@ def test_la_conexion_se_cierra_aunque_el_pipeline_falle(monkeypatch):
         be._cli([])
 
     assert cerrado == [1]
+
+
+# ---------------------------------------------------------------------------
+# Las vistas tienen que traer lo que dicen
+#
+# Cada calculo comprueba sus columnas y aborta con los nombres que faltan. Sin
+# eso, una vista que cambie produce un KeyError a mitad del calculo o, peor,
+# un resultado con una columna a NaN que nadie mira.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("funcion,texto", [
+    ("calculate_running_breakeven", "Stretch view"),
+    ("calculate_advance_breakeven", "Advance view"),
+    ("calculate_tagging_breakeven", "Tag-up view"),
+    ("calculate_swing_take_breakeven", "Swing/take aggregate"),
+])
+def test_una_vista_incompleta_aborta_diciendo_que_falta(funcion, texto):
+    incompleto = pd.DataFrame({"season": [2024]})
+
+    with pytest.raises(ValueError, match=texto):
+        getattr(be, funcion)(incompleto)
+
+
+def test_el_toque_comprueba_las_tres_vistas_por_separado():
+    completo = pd.DataFrame({"season": [2024], "batter_id": ["x"], "effect": [0.0]})
+    pesos = pd.DataFrame({"season": [2024], "batter_id": ["x"],
+                          "scenario": ["surprise_bunt"], "outs": [1],
+                          "n_bunts": [10], "lg_rv": [0.0]})
+    incompleto = pd.DataFrame({"season": [2024]})
+
+    with pytest.raises(ValueError, match="batter-effect"):
+        be.build_bunt_swing_away(incompleto, pesos)
+
+    with pytest.raises(ValueError, match="weights"):
+        be.build_bunt_swing_away(completo, incompleto)
+
+
+def test_sin_bateadores_con_muestra_el_baseline_sale_vacio_pero_con_columnas():
+    """
+    Devolver un DataFrame sin columnas haria fallar el merge de despues con un
+    KeyError que no dice de donde viene.
+    """
+    vacio = pd.DataFrame(columns=["season", "batter_id", "effect"])
+    pesos = pd.DataFrame(columns=["season", "batter_id", "scenario", "outs",
+                                  "n_bunts", "lg_rv"])
+
+    salida = be.build_bunt_swing_away(vacio, pesos)
+
+    assert len(salida) == 0
+    assert "swing_away" in salida.columns
+
+
+def test_el_toque_tambien_comprueba_su_vista_principal():
+    incompleto = pd.DataFrame({"season": [2024]})
+    efecto = pd.DataFrame({"season": [2024], "batter_id": ["x"], "effect": [0.0]})
+    pesos = pd.DataFrame({"season": [2024], "batter_id": ["x"],
+                          "scenario": ["surprise_bunt"], "outs": [1],
+                          "n_bunts": [10], "lg_rv": [0.0]})
+
+    with pytest.raises(ValueError, match="Bunt view"):
+        be.calculate_bunt_breakeven(incompleto, efecto, pesos)
+
+
+def test_la_zona_comprueba_su_consulta_de_muestras(vistas):
+    """
+    La zona hace DOS consultas: los umbrales y los tamanos de muestra. La
+    validacion de la segunda vive en el cargador, no en el calculo, porque es
+    ahi donde se sabe de que consulta vino.
+    """
+    vistas["respuestas"] = {
+        "agregado por zona": pd.DataFrame({
+            "season": [2024], "zone": [5], "handedness_split": ["RHP vs RHB"],
+            **{f"c_{b}_{st}": [0.5] for b in range(4) for st in range(3)},
+        }),
+        "n by season": pd.DataFrame({"season": [2024]}),
+    }
+
+    with pytest.raises(ValueError, match="zone n query"):
+        be.load_swing_take_zone_break_even_rows_from_db()
+
+
+# ---------------------------------------------------------------------------
+# Celdas incompletas
+# ---------------------------------------------------------------------------
+
+def test_si_falta_un_desenlace_entero_la_columna_se_crea_vacia():
+    """
+    Con solo dos de los tres cubos, el pivote no genera la columna del tercero.
+    Sin crearla, el calculo revienta con un KeyError en vez de descartar la
+    celda por falta de datos.
+    """
+    solo_dos = pd.DataFrame([
+        {"season": 2024, "outs": 1, "direction": "double", "bucket": b,
+         "n": 100, "mean_rv": rv, "sd_rv": 0.2}
+        for b, rv in (("stop", 0.26), ("success", 0.43))
+    ])
+
+    assert be.calculate_running_breakeven(solo_dos) == []
+
+
+def test_el_toque_tambien_sobrevive_a_un_cubo_ausente():
+    bunt = pd.DataFrame([
+        {"season": 2024, "scenario": "surprise_bunt", "outs": 1, "bucket": b,
+         "n": 100, "mean_rv": rv, "sd_rv": 0.2}
+        for b, rv in (("stop", 0.26), ("success", 0.43))
+    ])
+    efecto = pd.DataFrame({"season": [2024], "batter_id": ["x"], "effect": [0.0]})
+    pesos = pd.DataFrame({"season": [2024], "batter_id": ["x"],
+                          "scenario": ["surprise_bunt"], "outs": [1],
+                          "n_bunts": [10], "lg_rv": [0.0]})
+
+    assert be.calculate_bunt_breakeven(bunt, efecto, pesos) == []
+
+
+# ---------------------------------------------------------------------------
+# Columnas opcionales al escribir
+# ---------------------------------------------------------------------------
+
+def test_el_impacto_sin_etiqueta_usa_el_escenario(tmp_path):
+    filas = _filas_impacto()
+    for f in filas:
+        del f["label"]
+
+    be.save_re_impact(filas, tmp_path)
+
+    df = pd.read_parquet(tmp_path / "re_impact.parquet")
+    assert (df["label"] == df["scenario"]).all()
+
+
+def test_el_impacto_sin_baseline_deja_la_columna_a_nulo(tmp_path):
+    """
+    No todos los analisis tienen baseline. La columna tiene que existir igual:
+    la app lee el parquet con un esquema fijo.
+    """
+    filas = _filas_impacto()
+    for f in filas:
+        del f["baseline_re"]
+
+    be.save_re_impact(filas, tmp_path)
+
+    df = pd.read_parquet(tmp_path / "re_impact.parquet")
+    assert "baseline_re" in df.columns
+    assert df["baseline_re"].isna().all()
+
+
+def test_el_robo_por_conteo_sin_etiqueta_usa_el_escenario(tmp_path):
+    filas = _filas_por_conteo()
+    for f in filas:
+        del f["label"]
+
+    be.save_sb_breakeven_by_count(filas, tmp_path)
+
+    df = pd.read_parquet(tmp_path / "sb_breakeven_by_count.parquet")
+    assert (df["label"] == df["scenario"]).all()
+
+
+# ---------------------------------------------------------------------------
+# Cosas sueltas
+# ---------------------------------------------------------------------------
+
+def test_el_break_even_usa_la_conexion_compartida(monkeypatch):
+    centinela = object()
+    monkeypatch.setattr(be.db, "get_engine", lambda: centinela)
+
+    assert be.connect_to_database() is centinela
+
+
+def test_con_timeout_configurado_se_manda_el_LOCK_TIMEOUT(monkeypatch):
+    """
+    Sirve para que una vista bloqueada falle antes en vez de dejar el pipeline
+    esperando. Solo se manda si esta configurado.
+    """
+    registro = []
+    monkeypatch.setattr(be, "PH_QUERY_TIMEOUT_SECONDS", 30)
+    monkeypatch.setattr(be.pd, "read_sql_query",
+                        lambda q, c: pd.DataFrame({"season": [2024]}))
+
+    be._read_sql_view(_EngineFalso(None, registro), "SELECT 1", "v")
+
+    assert any("LOCK_TIMEOUT 30000" in s for s in registro)
+
+
+def test_sin_timeout_configurado_no_se_manda_nada(monkeypatch):
+    registro = []
+    monkeypatch.setattr(be, "PH_QUERY_TIMEOUT_SECONDS", 0)
+    monkeypatch.setattr(be.pd, "read_sql_query",
+                        lambda q, c: pd.DataFrame({"season": [2024]}))
+
+    be._read_sql_view(_EngineFalso(None, registro), "SELECT 1", "v")
+
+    assert registro == []
+
+
+# ---------------------------------------------------------------------------
+# Celdas que se descartan por falta de datos
+# ---------------------------------------------------------------------------
+
+def _re(mapa):
+    return {(2024, o, r): v for (o, r), v in mapa.items()}
+
+
+def test_una_celda_sin_los_tres_estados_de_re_se_salta():
+    """
+    Si falta la RE de partida, la del robo o la del atrapado, no hay formula.
+    Saltar la celda es correcto; publicarla con un hueco no.
+    """
+    filas = be.calculate_sb_breakeven(_re({(0, "100"): 0.9}), {}, [2024])
+
+    assert all(f["scenario"] != "Runner on 1B steals 2B" or pd.isna(f["breakeven_pct"])
+               for f in filas) or filas == []
+
+
+def test_un_denominador_cero_no_produce_un_infinito():
+    """
+    Con RE_sb == RE_cs la division seria infinito, y un break-even infinito se
+    pinta en la tabla como un numero enorme que parece un dato.
+    """
+    lookup = _re({(0, "100"): 0.9, (0, "010"): 1.2, (1, "000"): 1.2})
+
+    filas = be.calculate_sb_breakeven(lookup, {}, [2024])
+    escenario = [f for f in filas if f["scenario"] == "Runner on 1B steals 2B"]
+
+    assert all(pd.isna(f["breakeven_pct"]) for f in escenario) or escenario == []
+
+
+def test_por_conteo_tambien_se_saltan_las_celdas_incompletas():
+    re288 = {(2024, 0, "100", "0-0"): 0.9}
+
+    filas = be.calculate_sb_breakeven_by_count(re288, {}, [2024])
+
+    assert all(pd.isna(f["breakeven_pct"]) for f in filas) or filas == []
+
+
+def test_por_conteo_un_denominador_cero_tampoco_pasa():
+    re288 = {(2024, 0, "100", "0-0"): 0.9,
+             (2024, 0, "010", "0-0"): 1.2,
+             (2024, 1, "000", "0-0"): 1.2}
+
+    filas = be.calculate_sb_breakeven_by_count(re288, dict.fromkeys(re288, 5000), [2024])
+
+    assert all(pd.isna(f["breakeven_pct"]) for f in filas) or filas == []
+
+
+def test_el_elevado_al_jardin_distingue_anotar_de_llegar_a_tercera():
+    """
+    Son dos jugadas distintas y la etiqueta es lo unico que las separa en la
+    tabla: el corredor de 3B que anota y el de 2B que avanza.
+    """
+    def celda(direccion, runners):
+        # El cubo de quedarse se llama `stay` aqui y `stop` en las vistas de
+        # estirar el batazo: no quedarse quieto en tercera no es lo mismo que
+        # frenar en primera.
+        return pd.DataFrame([
+            {"season": 2024, "outs": 1, "direction": direccion, "runners": runners,
+             "bucket": b, "n": n, "mean_rv": rv, "sd_rv": 0.2}
+            for b, (n, rv) in {"stay": (500, 0.26), "success": (300, 0.43),
+                               "fail": (40, -0.15)}.items()
+        ])
+
+    anota = be.calculate_tagging_breakeven(celda("home", "001"))
+    avanza = be.calculate_tagging_breakeven(celda("third", "010"))
+
+    assert "score" in anota[0]["scenario"]
+    assert "3B" in avanza[0]["scenario"]
+    assert anota[0]["scenario"] != avanza[0]["scenario"]
+
+
+def test_las_celdas_de_ibb_sin_re_de_partida_se_descartan_y_se_cuentan(caplog):
+    """
+    Sin la RE del estado inicial no hay delta que calcular. Se cuentan y se
+    registran: si un dia se descartaran muchas, el log lo diria.
+    """
+    ibb = pd.DataFrame([
+        {"season": 2024, "outs": 1, "runners": "010", "n": 500, "run_value": 1.2},
+    ])
+
+    filas = be.calculate_ibb_impact(ibb, [2024], re_lookup={})
+
+    assert filas == []
+
+
+def test_una_vuelta_al_orden_desconocida_se_deja_como_viene():
+    """
+    Las conocidas se normalizan a TTO-1..TTO-3 y la 4+ se pliega sobre la 3. Un
+    valor raro se conserva tal cual en vez de inventarse un cubo: asi aparece en
+    la tabla y se ve que hay algo que revisar.
+    """
+    df = pd.DataFrame({
+        "season": [2024, 2024], "runners": ["000", "000"],
+        "handedness_split": ["RHP vs RHB", "RHP vs RHB"],
+        "tto_pass": ["4+", "raro"], "delta_run_value": [0.03, 0.04],
+        "n": [4000, 10],
+    })
+
+    salida = be._normalize_tto_impact_view_df(df)
+
+    valores = set(salida["tto_pass"])
+    assert "TTO-3" in valores, "la cuarta vuelta se pliega sobre la tercera"
+    assert "raro" in valores
+
+
+def test_avanzar_una_base_tambien_descarta_las_celdas_incompletas():
+    """
+    Misma forma que estirar el batazo: sin los tres desenlaces no hay
+    break-even, y la columna que falta hay que crearla o el pivote revienta.
+    """
+    solo_dos = pd.DataFrame([
+        {"season": 2024, "outs": 1, "direction": "first_to_third", "bucket": b,
+         "n": 100, "mean_rv": rv, "sd_rv": 0.2}
+        for b, rv in (("stop", 0.26), ("success", 0.43))
+    ])
+
+    assert be.calculate_advance_breakeven(solo_dos) == []
+
+
+def test_el_platoon_avisa_si_el_porcentaje_llega_nulo_desde_sql(caplog):
+    """
+    delta_run_value_scaled lo calcula la vista. Si llega nulo, la columna de
+    porcentaje sale vacia en la tabla; conviene que el log lo diga en vez de
+    dejarlo pasar.
+    """
+    df = pd.DataFrame({
+        "season": [2024], "outs": [1], "runners": ["000"],
+        "handedness_split": ["RHP vs RHB"], "delta_run_value": [0.02],
+        "delta_run_value_scaled": [None], "n": [5000],
+    })
+
+    with caplog.at_level("INFO"):
+        be._normalize_platoon_impact_view_df(df, re_lookup={})
+
+    assert "delta_run_value_scaled" in caplog.text
+
+
+def test_el_impacto_sin_ninguna_columna_opcional_se_escribe_igual(tmp_path):
+    """
+    Los seis analisis comparten un solo parquet y cada uno trae unas columnas.
+    El esquema publicado tiene que ser SIEMPRE el mismo, o la app --que lee con
+    un esquema fijo-- se queda sin ese endpoint.
+    """
+    minimas = [{
+        "season": 2024, "type": "sac_bunt", "scenario": "100",
+        "outs": 0, "delta_re": -0.2, "n": 4000,
+    }]
+
+    be.save_re_impact(minimas, tmp_path)
+
+    df = pd.read_parquet(tmp_path / "re_impact.parquet")
+    for col in ("label", "baseline_re", "delta_re_pct", "platoon",
+                "handedness_split", "tto_pass"):
+        assert col in df.columns, f"falta {col}"
+
+
+@pytest.fixture
+def pipeline_de_otra_temporada(monkeypatch, tmp_path):
+    """
+    Un pipeline cuya matriz es de una temporada ANTERIOR al techo, y sin filas
+    de base intencional.
+
+    Sirve para el resumen final, que muestra una muestra de seasons.MAX_SEASON:
+    aqui ningun analisis tiene datos de esa temporada.
+    """
+    import seasons as _s
+
+    anio = _s.MIN_SEASON
+    VALOR = {"000": 0.48, "100": 0.85, "010": 1.05, "001": 1.35,
+             "110": 1.45, "101": 1.75, "011": 1.95, "111": 2.25}
+
+    # Solo event_cd -1: sin filas de IBB (que serian event_cd 15).
+    pd.DataFrame([
+        {"season": anio, "outs": o, "runners": r,
+         "run_value": VALOR[r] * (1 - 0.25 * o), "n": 5000, "event_cd": -1}
+        for o in (0, 1, 2, 3) for r in VALOR
+    ]).to_parquet(tmp_path / "re24_values.parquet", index=False)
+
+    pd.DataFrame([
+        {"season": anio, "outs": o, "runners": r, "count": c,
+         "run_value": VALOR[r] * (1 - 0.25 * o), "n": 5000}
+        for o in (0, 1, 2, 3) for r in VALOR for c in ("0-0", "3-2")
+    ]).to_parquet(tmp_path / "re288_values.parquet", index=False)
+
+    vacio = []
+    for nombre in ("load_stretch_break_even_rows_from_db",
+                   "load_advance_break_even_rows_from_db",
+                   "load_tag_up_break_even_rows_from_db",
+                   "load_bunt_break_even_rows_from_db",
+                   "load_swing_take_break_even_rows_from_db",
+                   "load_swing_take_zone_break_even_rows_from_db",
+                   "load_ph_impact_rows_from_db",
+                   "load_platoon_baseline_impact_rows_from_db",
+                   "load_tto_impact_rows_from_db"):
+        monkeypatch.setattr(be, nombre, lambda *a, **k: list(vacio))
+
+    return tmp_path
+
+
+def test_sin_datos_de_la_ultima_temporada_el_resumen_lo_dice(pipeline_de_otra_temporada, caplog):
+    """
+    El resumen del final imprime una muestra de la ultima temporada. Cuando un
+    analisis no la tiene --porque su fuente termina antes, como ph_pitcher con
+    el DH universal-- tiene que decirlo en vez de imprimir una tabla vacia, que
+    se lee como si el calculo hubiera fallado.
+    """
+    with caplog.at_level("INFO"):
+        be.main(data_dir=pipeline_de_otra_temporada)
+
+    assert "no IBB data" in caplog.text
+    assert "no sac bunt data" in caplog.text
+
+
+def test_el_pipeline_se_completa_aunque_falten_analisis(pipeline_de_otra_temporada):
+    """Control: que falte la muestra no impide publicar los parquets."""
+    be.main(data_dir=pipeline_de_otra_temporada)
+
+    assert (pipeline_de_otra_temporada / "re_impact.parquet").exists()
+
+
+def test_el_pipeline_acota_swing_take_con_el_parametro(pipeline_falso, monkeypatch):
+    """
+    El tope sale de seasons.MAX_SEASON y no del maximo del parquet de re24.
+    Derivarlo del dato hacia que el rango publicado cambiara solo en cuanto
+    alguien cargara una temporada nueva, sin tocar una linea de codigo.
+    """
+    import seasons as _s
+
+    recibido = {}
+
+    def espia(season_cap):
+        recibido["cap"] = season_cap
+        return []
+
+    monkeypatch.setattr(be, "load_swing_take_break_even_rows_from_db", espia)
+
+    be.main(data_dir=pipeline_falso)
+
+    assert recibido["cap"] == _s.MAX_SEASON
