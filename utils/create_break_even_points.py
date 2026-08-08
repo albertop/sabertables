@@ -2329,9 +2329,11 @@ def write_derived_manifest(data_dir: Path) -> None:
              f"({len(manifest['inputs'])} entradas, {len(manifest['outputs'])} salidas)")
 
 
-def main():
-    script_dir = Path(__file__).parent
-    data_dir   = script_dir.parent / "app" / "data"
+def main(data_dir=None):
+    # data_dir es un parametro con valor por defecto y no una ruta fija dentro,
+    # para poder escribir a un directorio temporal en los tests. En produccion
+    # nadie lo pasa. Mismo patron que save_pythag_data y extract_and_save_data.
+    data_dir = Path(data_dir) if data_dir is not None else Path(__file__).parent.parent / "app" / "data"
 
     log.info("=" * 60)
     log.info("Break-Even & Sac Bunt RE Calculator")
