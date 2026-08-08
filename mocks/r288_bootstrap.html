@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>MLB Run Expectancy Tables</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Noto+Sans:wght@300..900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <link href="styles.css" rel="stylesheet"/>
+</head>
+<body>
+    <main class="d-flex flex-column align-items-center w-100">
+        <div class="container-xl px-4 py-5">
+            <div class="row align-items-center">
+                <div class="col-12">
+                    <h1 class="text-white display-3 fw-black mb-4 d-flex align-items-center gap-3">
+                        <img src="logo.png" alt="Logo" style="height: 1em;">
+                        MLB Run Expectancy Tables
+                    </h1>
+                    <h2 class="text-secondary-custom fs-5 fw-normal lh-lg">
+                        Explore comprehensive historical RE24 and RE288 matrices to uncover run value probabilities. Gain deeper insights into game situations by analyzing expected runs across various base-out states and ball-strike counts. <br/><br/>
+                        <span class="d-block small">
+                            <strong>RE24:</strong> Expected runs from base-out state until inning end.<br/>
+                            <strong>RE288:</strong> Adds ball-strike counts for more granular context.
+                        </span>
+                    </h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="container-xl px-4">
+            <div class="bg-surface-dark border-top border-bottom border-dark py-3 rounded-3">
+                <div class="px-3">
+                    <div class="mb-4">
+                        <h2 class="text-white h3 fw-bold mb-2">Data Configuration</h2>
+                    <p class="text-secondary-custom small">Select parameters to generate the run expectancy matrix.</p>
+                </div>
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label text-white fw-medium small">From Season</label>
+                        <div class="select-wrapper">
+                            <select class="form-select form-select-custom">
+                                <option value="2023">2023</option>
+                                <option value="2022">2022</option>
+                                <option value="2021">2021</option>
+                                <option value="2020">2020</option>
+                            </select>
+                            <span class="material-symbols-outlined select-icon">expand_more</span>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label text-white fw-medium small">To Season</label>
+                        <div class="select-wrapper">
+                            <select class="form-select form-select-custom">
+                                <option value="2023">2023</option>
+                                <option value="2022">2022</option>
+                                <option value="2021">2021</option>
+                                <option value="2020">2020</option>
+                            </select>
+                            <span class="material-symbols-outlined select-icon">expand_more</span>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label text-white fw-medium small">Matrix Type</label>
+                        <div class="select-wrapper">
+                            <select class="form-select form-select-custom">
+                                <option value="RE288" selected>RE288</option>
+                                <option value="RE24">RE24</option>
+                            </select>
+                            <span class="material-symbols-outlined select-icon">expand_more</span>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <button class="btn btn-primary-custom w-100 d-flex align-items-center justify-content-center gap-2" style="height: 48px;">
+                            <span class="material-symbols-outlined">refresh</span>
+                            Generate Table
+                        </button>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container-xl px-4 py-5">
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <h3 class="text-white h4 fw-bold d-flex align-items-center gap-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    Matrix Preview (RE288)
+                </h3>
+            </div>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" style="min-width: 1000px;">
+                        <thead>
+                            <tr class="bg-primary">
+                                <th class="p-4 text-center text-uppercase small fw-bold sticky-left-0 bg-primary z-20" style="width: 60px;">Base State</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold sticky-left-100 bg-primary z-20" style="width: 50px;">Outs</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">0-0</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">0-1</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">0-2</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">1-0</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">1-1</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">1-2</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">2-0</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">2-1</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">2-2</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">3-0</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">3-1</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary text-nowrap" style="width: 70px;">3-2</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 fw-medium text-secondary-custom sticky-left-0 bg-background-dark border-end border-dark z-10 text-center align-middle" rowspan="3" title="Empty Bases">
+                                    <svg class="mx-auto overflow-visible" width="48" height="48" viewBox="0 0 24 24">
+                                        <path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+                                    </svg>
+                                </td>
+                                <td class="p-2 text-center fw-bold text-white sticky-left-100 bg-surface-dark border-end border-dark z-10">0</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.461</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.418</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.370</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.508</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.457</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.398</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.575</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.512</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.441</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.697</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.605</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.528</td>
+                            </tr>
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 text-center fw-bold text-white sticky-left-100 bg-surface-dark border-end border-dark z-10">1</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.243</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.218</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.191</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.269</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.240</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.207</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.309</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.272</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.231</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.386</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.331</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.283</td>
+                            </tr>
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 text-center fw-bold text-white sticky-left-100 bg-surface-dark border-end border-dark z-10">2</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.095</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.084</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.072</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.107</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.094</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.079</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.125</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.108</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.090</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.162</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.136</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.113</td>
+                            </tr>
+                            <tr class="hover-bg-primary group border-top border-dark">
+                                <td class="p-2 fw-medium text-secondary-custom sticky-left-0 bg-background-dark border-end border-dark z-10 text-center align-middle" rowspan="3" title="1st Base">
+                                    <svg class="mx-auto overflow-visible" width="48" height="48" viewBox="0 0 24 24">
+                                        <path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+                                        <rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+                                    </svg>
+                                </td>
+                                <td class="p-2 text-center fw-bold text-white sticky-left-100 bg-surface-dark border-end border-dark z-10">0</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.831</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.768</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.692</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.895</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.824</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.735</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.992</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.905</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.798</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">1.185</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">1.042</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.925</td>
+                            </tr>
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 text-center fw-bold text-white sticky-left-100 bg-surface-dark border-end border-dark z-10">1</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.489</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.445</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.395</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.535</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.485</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.425</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.605</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.545</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.470</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.745</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.645</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.565</td>
+                            </tr>
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 text-center fw-bold text-white sticky-left-100 bg-surface-dark border-end border-dark z-10">2</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.209</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.188</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.165</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.232</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.208</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.180</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.268</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.238</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.202</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.342</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.292</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.248</td>
+                            </tr>
+                            <tr class="hover-bg-primary group border-top border-dark">
+                                <td class="p-2 fw-medium text-secondary-custom sticky-left-0 bg-background-dark border-end border-dark z-10 text-center align-middle" rowspan="3" title="2nd Base">
+                                    <svg class="mx-auto overflow-visible" width="48" height="48" viewBox="0 0 24 24">
+                                        <path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+                                        <rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+                                    </svg>
+                                </td>
+                                <td class="p-2 text-center fw-bold text-white sticky-left-100 bg-surface-dark border-end border-dark z-10">0</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">1.068</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.995</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.912</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">1.135</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">1.058</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.958</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">1.245</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">1.148</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">1.025</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">1.455</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">1.298</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">1.155</td>
+                            </tr>
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 text-center fw-bold text-white sticky-left-100 bg-surface-dark border-end border-dark z-10">1</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.644</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.595</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.538</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.692</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.635</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.568</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.768</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.702</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.615</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.912</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.815</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.718</td>
+                            </tr>
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 text-center fw-bold text-white sticky-left-100 bg-surface-dark border-end border-dark z-10">2</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.304</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.278</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.245</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.332</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.302</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.265</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.375</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.338</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.292</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.465</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.408</td>
+                                <td class="p-2 text-center font-monospace text-secondary-custom fs-6">0.352</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-6">
+                            <div class="mb-1">
+                                <span class="text-white fw-bold small">Download Full Dataset</span>
+                            </div>
+                            <span class="text-secondary-custom" style="font-size: 0.75rem;">Available in CSV and JSON formats.</span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="d-flex gap-3 align-items-center justify-content-md-end">
+                                <label class="text-white small fw-medium" for="format-select">Format:</label>
+                                <div class="select-wrapper" style="width: 112px;">
+                                    <select class="form-select form-select-sm form-select-custom" id="format-select" style="height: 40px;">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                        <option value="xml">XML</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon" style="font-size: 20px;">expand_more</span>
+                                </div>
+                                <button class="btn btn-primary-custom d-flex align-items-center gap-2 px-4" style="height: 40px;">
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="container-xl px-4">
+        <footer class="footer-custom py-4 mt-5 rounded-3">
+            <div class="px-4">
+                <div class="row align-items-center g-3">
+                    <div class="col-12">
+                    <div class="d-flex flex-wrap justify-content-center justify-content-md-between align-items-center gap-3">
+                        <a class="small fw-medium text-secondary-custom text-decoration-none" href="mailto:runexpectancy@gmail.com">runexpectancy@gmail.com</a>
+                        <p class="small text-secondary-custom mb-0 text-end" style="max-width: 500px; opacity: 0.6; font-size: 0.75rem;">
+                            The information used here was obtained free of charge from and is copyrighted by Retrosheet. Interested parties may contact Retrosheet at "www.retrosheet.org".
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

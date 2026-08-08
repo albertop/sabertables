@@ -1,0 +1,14 @@
+{
+  "generated_utc": "2026-08-08T20:35:25.389154+00:00",
+  "producer": "create_break_even_points.py",
+  "inputs": {
+    "re24_values.parquet": "5b9d92ccfc370f9817e16bfc2478070bb3387258c5c1812cd815f3a2fe536336",
+    "re288_values.parquet": "ea90ea03e2c66ae1c8713173c8fe19e1ee877aa2ae911258da06133791c7e94f"
+  },
+  "outputs": [
+    "breakeven_points.parquet",
+    "re_impact.parquet",
+    "sb_breakeven_by_count.parquet",
+    "ph_impact_source.parquet"
+  ]
+}

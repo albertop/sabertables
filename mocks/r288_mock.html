@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Run Expectancy Tables Home</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&amp;family=Noto+Sans:wght@300..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="styles.css" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                        "surface-dark": "#192633",
+                        "border-dark": "#233648",
+                        "text-secondary": "#92adc9",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white min-h-screen flex flex-col overflow-x-hidden">
+<main class="flex-grow flex flex-col items-center w-full">
+<div class="w-full max-w-[1200px] px-4 md:px-10 py-10 md:py-16">
+<div class="@container">
+<div class="flex flex-col gap-8 md:gap-12 md:flex-row items-center">
+<div class="flex flex-col gap-6 w-full justify-center">
+<div class="flex flex-col gap-4 text-left">
+<h1 class="text-white text-4xl md:text-5xl lg:text-6xl font-black leading-tight tracking-[-0.033em] font-display whitespace-nowrap">
+                                Run Expectancy Tables
+                            </h1>
+<h2 class="text-text-secondary text-base md:text-lg font-normal leading-relaxed">
+                                Explore comprehensive historical RE24 and RE288 matrices to uncover run value probabilities. Gain deeper insights into game situations by analyzing expected runs across various base-out states and ball-strike counts. <br/><br/>
+<span class="block text-sm text-text-secondary/80">
+<strong>RE24:</strong> Expected runs from base-out state until inning end.<br/>
+<strong>RE288:</strong> Adds ball-strike counts for more granular context.
+                                </span>
+</h2>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="w-full bg-surface-dark/50 border-y border-border-dark py-12">
+<div class="max-w-[1200px] mx-auto px-4 md:px-10 flex flex-col gap-8">
+<div class="flex flex-col gap-2">
+<h2 class="text-white text-2xl font-bold leading-tight tracking-[-0.015em]">Data Configuration</h2>
+<p class="text-text-secondary text-sm">Select parameters to generate the run expectancy matrix.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 items-end">
+<div class="lg:col-span-3 flex flex-col gap-3">
+<label class="text-white text-sm font-medium">From Season</label>
+<div class="relative">
+<select class="w-full appearance-none rounded-lg border border-border-dark bg-surface-dark text-white h-12 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer font-display">
+<option value="2023">2023</option>
+<option value="2022">2022</option>
+<option value="2021">2021</option>
+<option value="2020">2020</option>
+</select>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+</div>
+<div class="lg:col-span-3 flex flex-col gap-3">
+<label class="text-white text-sm font-medium">To Season</label>
+<div class="relative">
+<select class="w-full appearance-none rounded-lg border border-border-dark bg-surface-dark text-white h-12 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer font-display">
+<option value="2023">2023</option>
+<option value="2022">2022</option>
+<option value="2021">2021</option>
+<option value="2020">2020</option>
+</select>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+</div>
+<div class="lg:col-span-3 flex flex-col gap-3">
+<label class="text-white text-sm font-medium">Matrix Type</label>
+<div class="relative">
+<select class="w-full appearance-none rounded-lg border border-border-dark bg-surface-dark text-white h-12 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer font-display">
+<option selected="" value="RE288">RE288</option>
+<option value="RE24">RE24</option>
+</select>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+</div>
+<div class="lg:col-span-3 flex items-center h-12">
+<button class="w-full h-12 flex items-center justify-center gap-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-bold transition-all shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-lg">refresh</span>
+                            Generate
+                        </button>
+</div>
+</div>
+</div>
+</div>
+<div class="w-full max-w-[1200px] px-4 md:px-10 py-12 flex flex-col gap-8">
+<div class="flex items-center justify-between">
+<h3 class="text-white text-xl font-bold flex items-center gap-3">
+<span class="material-symbols-outlined text-text-secondary">table_view</span>
+                    Matrix Preview (RE288)
+                </h3>
+<div class="hidden gap-2">
+</div>
+</div>
+<div class="w-full overflow-hidden rounded-xl border border-border-dark bg-surface-dark/30 shadow-lg flex flex-col">
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full text-left border-collapse min-w-[1000px]">
+<thead>
+<tr class="bg-primary border-b border-border-dark">
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider sticky left-0 bg-primary z-20 text-center min-w-[100px] border-r border-white/20">Base State</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider sticky left-[100px] bg-primary z-20 text-center border-r border-white/20">Outs</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">0-0</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">0-1</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">0-2</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">1-0</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">1-1</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">1-2</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">2-0</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">2-1</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">2-2</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">3-0</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">3-1</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center w-[60px]">3-2</th>
+</tr>
+</thead>
+<tbody class="text-sm text-white divide-y divide-border-dark/50">
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 font-medium text-text-secondary sticky left-0 bg-background-dark group-hover:bg-[#15202b] border-r border-border-dark/50 z-10" rowspan="3" title="Empty Bases">
+<svg class="w-12 h-12 mx-auto overflow-visible" viewBox="0 0 24 24">
+<path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+</svg>
+</td>
+<td class="p-4 text-center font-bold text-white sticky left-[100px] bg-surface-dark/50 group-hover:bg-[#1c2b3a] border-r border-border-dark/50 z-10">0</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.461</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.418</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.370</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.508</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.457</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.398</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.575</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.512</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.441</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.697</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.605</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.528</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 text-center font-bold text-white sticky left-[100px] bg-surface-dark/50 group-hover:bg-[#1c2b3a] border-r border-border-dark/50 z-10">1</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.243</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.218</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.191</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.269</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.240</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.207</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.309</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.272</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.231</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.386</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.331</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.283</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 text-center font-bold text-white sticky left-[100px] bg-surface-dark/50 group-hover:bg-[#1c2b3a] border-r border-border-dark/50 z-10">2</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.095</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.084</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.072</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.107</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.094</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.079</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.125</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.108</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.090</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.162</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.136</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.113</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group border-t border-border-dark">
+<td class="p-4 font-medium text-text-secondary sticky left-0 bg-background-dark group-hover:bg-[#15202b] border-r border-border-dark/50 z-10" rowspan="3" title="1st Base">
+<svg class="w-12 h-12 mx-auto overflow-visible" viewBox="0 0 24 24">
+<path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+<rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+</svg>
+</td>
+<td class="p-4 text-center font-bold text-white sticky left-[100px] bg-surface-dark/50 group-hover:bg-[#1c2b3a] border-r border-border-dark/50 z-10">0</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.831</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.768</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.692</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.895</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.824</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.735</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.992</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.905</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.798</td>
+<td class="p-4 text-center font-mono text-text-secondary">1.185</td>
+<td class="p-4 text-center font-mono text-text-secondary">1.042</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.925</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 text-center font-bold text-white sticky left-[100px] bg-surface-dark/50 group-hover:bg-[#1c2b3a] border-r border-border-dark/50 z-10">1</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.489</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.445</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.395</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.535</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.485</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.425</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.605</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.545</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.470</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.745</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.645</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.565</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 text-center font-bold text-white sticky left-[100px] bg-surface-dark/50 group-hover:bg-[#1c2b3a] border-r border-border-dark/50 z-10">2</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.209</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.188</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.165</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.232</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.208</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.180</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.268</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.238</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.202</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.342</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.292</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.248</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group border-t border-border-dark">
+<td class="p-4 font-medium text-text-secondary sticky left-0 bg-background-dark group-hover:bg-[#15202b] border-r border-border-dark/50 z-10" rowspan="3" title="2nd Base">
+<svg class="w-12 h-12 mx-auto overflow-visible" viewBox="0 0 24 24">
+<path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+<rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+</svg>
+</td>
+<td class="p-4 text-center font-bold text-white sticky left-[100px] bg-surface-dark/50 group-hover:bg-[#1c2b3a] border-r border-border-dark/50 z-10">0</td>
+<td class="p-4 text-center font-mono text-text-secondary">1.068</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.995</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.912</td>
+<td class="p-4 text-center font-mono text-text-secondary">1.135</td>
+<td class="p-4 text-center font-mono text-text-secondary">1.058</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.958</td>
+<td class="p-4 text-center font-mono text-text-secondary">1.245</td>
+<td class="p-4 text-center font-mono text-text-secondary">1.148</td>
+<td class="p-4 text-center font-mono text-text-secondary">1.025</td>
+<td class="p-4 text-center font-mono text-text-secondary">1.455</td>
+<td class="p-4 text-center font-mono text-text-secondary">1.298</td>
+<td class="p-4 text-center font-mono text-text-secondary">1.155</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 text-center font-bold text-white sticky left-[100px] bg-surface-dark/50 group-hover:bg-[#1c2b3a] border-r border-border-dark/50 z-10">1</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.644</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.595</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.538</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.692</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.635</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.568</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.768</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.702</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.615</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.912</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.815</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.718</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 text-center font-bold text-white sticky left-[100px] bg-surface-dark/50 group-hover:bg-[#1c2b3a] border-r border-border-dark/50 z-10">2</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.304</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.278</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.245</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.332</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.302</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.265</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.375</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.338</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.292</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.465</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.408</td>
+<td class="p-4 text-center font-mono text-text-secondary">0.352</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-6 border-t border-border-dark bg-surface-dark flex flex-col md:flex-row items-center justify-between gap-4">
+<div class="flex flex-col gap-1">
+<span class="text-white font-bold text-sm">Download Full Dataset</span>
+<span class="text-text-secondary text-xs">Available in CSV and JSON formats.</span>
+</div>
+<div class="flex gap-3 items-center">
+<label class="text-white text-sm mr-2" for="format-select">Format:</label>
+<div class="relative">
+<select class="appearance-none rounded-lg border border-border-dark bg-background-dark text-white h-10 px-3 pr-8 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer font-display text-sm w-28" id="format-select">
+<option value="csv">CSV</option>
+<option value="json">JSON</option>
+<option value="xml">XML</option>
+</select>
+<div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary">
+<span class="material-symbols-outlined text-sm">expand_more</span>
+</div>
+</div>
+<button class="flex items-center gap-2 px-6 h-10 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-bold transition-all shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-lg">download</span>
+                            Download
+                        </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<footer class="w-full border-t border-border-dark bg-surface-dark py-8 mt-12">
+<div class="max-w-[1200px] mx-auto px-4 md:px-10 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex flex-wrap justify-center md:justify-start items-center gap-x-6 gap-y-2 text-white w-full">
+<a class="text-sm font-medium text-text-secondary hover:text-white transition-colors" href="mailto:runexpectancy@gmail.com">runexpectancy@gmail.com</a>
+<div class="flex-grow"></div>
+<p class="text-xs text-text-secondary/60 max-w-lg text-right">The information used here was obtained free of charge from and is copyrighted by Retrosheet. Interested parties may contact Retrosheet at "www.retrosheet.org".</p>
+</div>
+</div>
+</footer>
+</body></html>

@@ -1,0 +1,21 @@
+{
+  "last_updated_utc": "2026-08-08T20:29:18.296323+00:00",
+  "files": [
+    "re288_values.parquet",
+    "re288_frequencies.parquet",
+    "re288_transitions.parquet",
+    "re24_values.parquet",
+    "re24_probabilities.parquet",
+    "re24_eventTypes.parquet",
+    "events_counts.parquet",
+    "wOBA_Coeffs.parquet",
+    "fip.parquet",
+    "ballparks.parquet",
+    "parkFactors.parquet",
+    "linear_weights.parquet",
+    "re24_frequencies.parquet",
+    "re24_transitions.parquet",
+    "win_expectancy.parquet",
+    "innings.json"
+  ]
+}

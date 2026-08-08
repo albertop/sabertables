@@ -1,0 +1,137 @@
+# Configuracion de herramientas. No declara un paquete instalable: este
+# proyecto son dos entradas (app/ y utils/) que se ejecutan en sitio.
+
+[tool.ruff]
+line-length = 120          # el codigo existente ya vive ahi; bajarlo seria reescribirlo entero
+target-version = "py313"   # la version de la imagen de Docker, que es el suelo real
+extend-exclude = ["_not_in_use", "docker_images", "mocks", ".venv"]
+
+[tool.ruff.lint]
+# Se arranca con lo que encuentra errores de verdad y casi no da falsos positivos.
+# Los que reordenan o reescriben codigo que funciona se dejan fuera a proposito:
+# este proyecto no esta en git, asi que un cambio masivo no se deshace.
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes: nombres sin definir, imports sin usar, f-strings rotas
+    "W",    # avisos de espacio en blanco
+    "I",    # orden de imports
+    "UP",   # sintaxis vieja que ya no hace falta en 3.13
+    "B",    # bugbear: mutables por defecto, except vacios, comparaciones raras
+    "C4",   # comprehensions inutiles
+    "PIE",  # duplicados y ramas muertas
+    "RUF",  # reglas propias de ruff
+]
+ignore = [
+    "E501",    # longitud de linea: la controla line-length, no la regla
+    "E741",    # nombres de una letra tipo l/I; en formulas sabermetricas se leen mejor
+    "B008",    # llamada en argumento por defecto: es el patron de Depends() de FastAPI
+    "RUF001",  # caracteres unicode ambiguos: los comentarios llevan acentos y guiones largos
+    "RUF002",
+    "RUF003",
+    # RUF005: prefiere [*lista, x] sobre lista + [x]. Es preferencia de estilo, no
+    # un defecto: las 19 ocurrencias son concatenaciones legibles tipo
+    # expected_files + ["last_updated.json"], y reescribirlas no arregla nada.
+    "RUF005",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Los tests importan los modulos de utils/ despues de que conftest.py toque
+# sys.path, asi que el import no puede ir arriba del todo en algunos casos.
+"tests/*" = ["E402"]
+# run_all.py y los scripts de utils insertan su propia ruta antes de importar.
+"utils/run_all.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "utils"]
+
+[tool.mypy]
+python_version = "3.13"
+files = ["app", "utils", "tests"]
+exclude = "(_not_in_use|docker_images|mocks|\\.venv)"
+
+# Arranque deliberadamente permisivo. Este codigo son ~9,900 lineas escritas sin
+# anotaciones, asi que exigir tipos completos de golpe daria miles de errores y
+# el resultado seria desactivar mypy entero. Lo que si esta activado es lo que
+# encuentra fallos reales sin pedir anotar nada:
+#
+#   warn_unused_ignores      un "# type: ignore" que ya no hace falta
+#   warn_redundant_casts     un cast que no cambia nada
+#   warn_unreachable         codigo detras de un return o una condicion imposible
+#   no_implicit_optional     def f(x: int = None), que es un TypeError esperando
+#
+# Para endurecer mas adelante, lo natural es ir modulo a modulo con
+# disallow_untyped_defs en un bloque [[tool.mypy.overrides]], empezando por
+# utils/db.py y utils/cli.py, que son los pequenos.
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+no_implicit_optional = true
+warn_unused_configs = true
+
+# Sin esto, cada import de una libreria sin tipos es un error y el ruido tapa
+# los hallazgos propios.
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# pyodbc y slowapi no publican tipos.
+module = ["pyodbc.*", "slowapi.*"]
+ignore_errors = true
+
+# --- Silenciados con motivo, no por comodidad ------------------------------
+#
+# OJO CON LOS NOMBRES: utils/ no tiene __init__.py, asi que mypy ve sus modulos
+# por el nombre suelto (`run_all`), no como `utils.run_all`. Con el prefijo, el
+# override no casa con nada y no silencia nada.
+#
+# Lo que queda son limitaciones de los stubs de terceros o patrones defensivos
+# que mypy no sabe expresar. Se silencian POR REGLA y POR MODULO, nunca en
+# bloque: asi un error nuevo de otra clase sigue apareciendo.
+#
+# Los que SI eran defectos ya se corrigieron: en utils/db.py, `raise last_error`
+# lanzaba None cuando la lista de servidores quedaba vacia -- un TypeError
+# criptico en vez del mensaje util. Y data_store estaba anotado como
+# dict[str, DataFrame | None] cuando tambien guarda un dict y una lista; esa sola
+# anotacion falsa producia 30 de los 56 errores.
+
+[[tool.mypy.overrides]]
+# sys.stdout.reconfigure(): existe en CPython pero no en el tipo TextIO, y aqui
+# ya va envuelto en try/except (AttributeError, ValueError) precisamente porque
+# puede no estar. El aviso senala el codigo que YA se protege.
+module = [
+    "run_all",
+    "sync_sql_views",
+    "extract_re_data",
+    "calculate_pythag_exponents",
+]
+disable_error_code = ["union-attr"]
+
+[[tool.mypy.overrides]]
+# pandas-stubs declara `engine` como Literal, asi que rechaza engine="pyarrow"
+# aunque la firma real de pandas sea `engine: str = "auto"` -- comprobado con
+# inspect.signature. Tambien marca int(Hashable) e isna(object) sobre valores que
+# vienen de iterrows(), donde el tipo real se conoce y el stub no puede saberlo.
+# Un modulo NO puede aparecer en dos overrides: mypy descarta la configuracion
+# entera y deja de silenciar nada, sin decir por que. Por eso los dos motivos que
+# afectan a este fichero van juntos aqui.
+module = ["create_break_even_points"]
+disable_error_code = ["call-overload", "union-attr"]
+
+[[tool.mypy.overrides]]
+# Los generadores construyen filas como dict[str, Any] y despues acumulan en
+# listas dentro de esos dicts. mypy infiere `object` para el valor y protesta al
+# hacer .append(). Es el precio de un dict heterogeneo; tiparlo de verdad pediria
+# TypedDict por cada forma de tabla, que son dieciocho.
+module = ["app.services.table_generator"]
+disable_error_code = ["union-attr", "attr-defined", "arg-type"]
+
+[[tool.mypy.overrides]]
+# El limitador tiene un sustituto _NoOpLimiter para cuando slowapi no esta, y el
+# manejador de RateLimitExceeded es mas concreto que la firma generica de
+# Starlette. Los dos son correctos en ejecucion.
+module = ["app.main"]
+disable_error_code = ["assignment", "arg-type"]
+
+[[tool.mypy.overrides]]
+# loguru acepta FileHandler donde el stub declara StreamHandler.
+module = ["cli"]
+disable_error_code = ["arg-type"]

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RE Impact — Run Value vs Percentage mock</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Noto+Sans:wght@300..900&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "primary":         "#137fec",
+                    "background-dark": "#101922",
+                    "surface-dark":    "#192633",
+                    "border-dark":     "#233648",
+                    "text-secondary":  "#92adc9",
+                },
+                fontFamily: {
+                    "display": ["Lexend", "sans-serif"],
+                    "body":    ["Noto Sans", "sans-serif"],
+                },
+            },
+        },
+    }
+</script>
+<style>
+  body { font-family: 'Noto Sans', sans-serif; }
+  h1, h2, h3     { font-family: 'Lexend', sans-serif; }
+
+  /* toggle pill */
+  .toggle-pill {
+    display: inline-flex;
+    border: 1px solid #233648;
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 0.8rem;
+  }
+  .toggle-pill button {
+    padding: 5px 14px;
+    background: transparent;
+    color: #92adc9;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .toggle-pill button.active {
+    background: #137fec;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* colouring */
+  .val-pos { color: #4ade80; font-weight: 600; font-family: monospace; }
+  .val-neg { color: #f87171; font-weight: 600; font-family: monospace; }
+  .val-neu { color: #e2e8f0; font-weight: 600; font-family: monospace; }
+
+  /* diamond */
+  .dw { display:inline-flex; align-items:center; gap:7px; }
+  .base-empty { fill:#233648; stroke:#92adc9; stroke-width:1.5; }
+  .base-on    { fill:#137fec; stroke:#137fec; stroke-width:1.5; }
+</style>
+</head>
+<body class="bg-[#101922] text-white min-h-screen p-8">
+<div class="max-w-[820px] mx-auto flex flex-col gap-8">
+
+  <!-- ── SECTION: SAC BUNT ── -->
+  <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-1">
+      <h2 class="text-xl font-bold leading-tight">
+        Sacrifice Bunt RE Impact
+        <span class="ml-2 text-xs font-semibold bg-[#137fec]/20 text-[#137fec] border border-[#137fec]/40 rounded px-2 py-0.5">
+          2000–2024 avg
+        </span>
+      </h2>
+      <p id="sac-subtitle" class="text-[#92adc9] text-sm"></p>
+    </div>
+
+    <!-- toggle -->
+    <div class="flex items-center gap-3">
+      <span class="text-xs text-[#92adc9]">Show as:</span>
+      <div class="toggle-pill">
+        <button id="sac-run-btn"  class="active" onclick="setSacMode('runs')">Run value</button>
+        <button id="sac-pct-btn"  class="" onclick="setSacMode('pct')">% change</button>
+      </div>
+    </div>
+
+    <!-- table -->
+    <div class="overflow-x-auto rounded-lg border border-[#233648]">
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr>
+            <th class="bg-[#137fec] text-white text-left px-4 py-3 font-semibold w-[260px]">Scenario</th>
+            <th class="bg-[#137fec] text-white text-center px-4 py-3 font-semibold">0 Outs</th>
+            <th class="bg-[#137fec] text-white text-center px-4 py-3 font-semibold">1 Out</th>
+          </tr>
+        </thead>
+        <tbody id="sac-body"></tbody>
+      </table>
+    </div>
+    <p id="sac-footnote" class="text-xs text-[#92adc9]"></p>
+  </div>
+
+  <hr class="border-[#233648]"/>
+
+  <!-- ── SECTION: IBB ── -->
+  <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-1">
+      <h2 class="text-xl font-bold leading-tight">
+        Intentional Walk RE Impact
+        <span class="ml-2 text-xs font-semibold bg-[#137fec]/20 text-[#137fec] border border-[#137fec]/40 rounded px-2 py-0.5">
+          2000–2024 avg
+        </span>
+      </h2>
+      <p id="ibb-subtitle" class="text-[#92adc9] text-sm"></p>
+    </div>
+
+    <!-- toggle -->
+    <div class="flex items-center gap-3">
+      <span class="text-xs text-[#92adc9]">Show as:</span>
+      <div class="toggle-pill">
+        <button id="ibb-run-btn" class="active" onclick="setIbbMode('runs')">Run value</button>
+        <button id="ibb-pct-btn" class=""        onclick="setIbbMode('pct')">% change</button>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto rounded-lg border border-[#233648]">
+      <table class="w-full text-sm border-collapse">
+        <thead>
+          <tr>
+            <th class="bg-[#137fec] text-white text-left px-4 py-3 font-semibold w-[260px]">Scenario</th>
+            <th class="bg-[#137fec] text-white text-center px-4 py-3 font-semibold">0 Outs</th>
+            <th class="bg-[#137fec] text-white text-center px-4 py-3 font-semibold">1 Out</th>
+            <th class="bg-[#137fec] text-white text-center px-4 py-3 font-semibold">2 Outs</th>
+          </tr>
+        </thead>
+        <tbody id="ibb-body"></tbody>
+      </table>
+    </div>
+    <p id="ibb-footnote" class="text-xs text-[#92adc9]"></p>
+  </div>
+
+</div>
+
+<script>
+// ── SVG diamond ───────────────────────────────────────────────────
+function diamond(state) {
+    const on1 = state[0]==='1', on2 = state[1]==='1', on3 = state[2]==='1';
+    const c = on => on ? 'base-on' : 'base-empty';
+    return `<svg width="20" height="20" viewBox="0 0 20 20">
+        <polygon points="10,3 14,7 10,11 6,7"  class="${c(on2)}"/>
+        <polygon points="3,10 7,6 11,10 7,14"  class="${c(on3)}"/>
+        <polygon points="17,10 13,6 9,10 13,14" class="${c(on1)}"/>
+        <polygon points="10,17 14,13 10,9 6,13" class="base-empty"/>
+    </svg>`;
+}
+
+// ── SAC BUNT data ─────────────────────────────────────────────────
+// Columns: label, state, re_before_0, re_before_1, delta_0, delta_1
+// re_before = RE24 for (runners, outs); delta = RE_after - RE_before
+// Values typical of 2020s era (illustrative but realistic)
+const SAC_DATA = [
+    { label:"Runner on 1B",        state:"100",
+      re0:0.941, re1:0.563, d0:-0.220, d1:-0.030 },
+    { label:"Runner on 2B",        state:"010",
+      re0:0.721, re1:0.467, d0:-0.049, d1: 0.018 },
+    { label:"Runners on 1B & 2B",  state:"110",
+      re0:1.556, re1:0.978, d0:-0.187, d1:-0.146 },
+];
+
+// ── IBB data ──────────────────────────────────────────────────────
+// Reliable scenarios only (001=3B only, 010=2B only, 011=2B&3B)
+// delta_re is observed mean run value from event_cd=15
+// re_before = RE24 for (runners, outs) = context before IBB
+const IBB_DATA = [
+    { label:"Runner on 3B",        state:"001",  reliable:true,
+      re0:1.382, re1:0.977, re2:0.385,
+      d0: 0.195, d1: 0.133, d2: 0.086 },
+    { label:"Runner on 2B",        state:"010",  reliable:true,
+      re0:0.721, re1:0.467, re2:0.232,
+      d0: 0.173, d1: 0.118, d2: 0.061 },
+    { label:"Runners on 2B & 3B",  state:"011",  reliable:true,
+      re0:1.442, re1:0.977, re2:0.468,
+      d0: 0.221, d1: 0.154, d2: 0.095 },
+    { label:"Runner on 1B",        state:"100",  reliable:false,
+      re0:0.941, re1:0.563, re2:0.238, d0:null, d1:null, d2:null },
+    { label:"Runners on 1B & 3B",  state:"101",  reliable:false,
+      re0:1.762, re1:1.197, re2:0.596, d0:null, d1:null, d2:null },
+    { label:"Runners on 1B & 2B",  state:"110",  reliable:false,
+      re0:1.556, re1:0.978, re2:0.447, d0:null, d1:null, d2:null },
+    { label:"Bases loaded",        state:"111",  reliable:false,
+      re0:2.282, re1:1.556, re2:0.813, d0:null, d1:null, d2:null },
+];
+
+// ── Modes ─────────────────────────────────────────────────────────
+let sacMode = 'runs';
+let ibbMode = 'runs';
+
+const SUBTITLES = {
+    sac: {
+        runs: 'How many runs a sac bunt costs on average, in run expectancy (negative = costs runs).',
+        pct:  'How much run expectancy shrinks by calling for the bunt, as a percentage of the base-state expectation.',
+    },
+    ibb: {
+        runs: 'Average run-value cost of an intentional walk, from real IBB events (event_cd = 15).',
+        pct:  'How much run expectancy rises from the IBB, as a percentage of the base-state expectation.',
+    },
+};
+
+const FOOTNOTES = {
+    sac: {
+        runs: '−0.220 = calling for the bunt costs roughly 0.22 expected runs from that situation.',
+        pct:  '−23% = calling for the bunt shrinks your run expectancy by about a quarter.',
+    },
+    ibb: {
+        runs: '+0.173 = an IBB from a runner-on-2B situation adds 0.17 expected runs for the batting team.',
+        pct:  '+24% = an IBB from runner-on-2B raises run expectancy by about a quarter.',
+    },
+};
+
+// ── Render helpers ────────────────────────────────────────────────
+function fmtCell(delta, reBefore, mode) {
+    if (delta === null) return `<td class="text-center px-4 py-3 border-t border-[#233648] text-[#92adc9] italic">N/A</td>`;
+    let display, cls;
+    if (mode === 'runs') {
+        const sign = delta >= 0 ? '+' : '';
+        display = `${sign}${delta.toFixed(3)}`;
+        cls = delta > 0.005 ? 'val-pos' : delta < -0.005 ? 'val-neg' : 'val-neu';
+    } else {
+        const pct = (delta / reBefore) * 100;
+        const sign = pct >= 0 ? '+' : '';
+        display = `${sign}${pct.toFixed(1)}%`;
+        cls = pct > 0.5 ? 'val-pos' : pct < -0.5 ? 'val-neg' : 'val-neu';
+    }
+    return `<td class="text-center px-4 py-3 border-t border-[#233648]"><span class="${cls}">${display}</span></td>`;
+}
+
+function renderSac() {
+    document.getElementById('sac-subtitle').textContent  = SUBTITLES.sac[sacMode];
+    document.getElementById('sac-footnote').textContent  = FOOTNOTES.sac[sacMode];
+    document.getElementById('sac-run-btn').className = sacMode === 'runs' ? 'active' : '';
+    document.getElementById('sac-pct-btn').className = sacMode === 'pct'  ? 'active' : '';
+
+    const tbody = document.getElementById('sac-body');
+    tbody.innerHTML = SAC_DATA.map((r, i) => {
+        const bg = i % 2 === 0 ? 'bg-[#192633]' : 'bg-[#101922]';
+        const c0 = fmtCell(r.d0, r.re0, sacMode);
+        const c1 = fmtCell(r.d1, r.re1, sacMode);
+        return `<tr class="${bg} hover:bg-[#233648]/60 transition-colors">
+            <td class="text-left px-4 py-3 border-t border-[#233648]">
+                <span class="dw">${diamond(r.state)}<span>${r.label}</span></span>
+            </td>
+            ${c0}${c1}
+        </tr>`;
+    }).join('');
+}
+
+function renderIbb() {
+    document.getElementById('ibb-subtitle').textContent = SUBTITLES.ibb[ibbMode];
+    document.getElementById('ibb-footnote').textContent = FOOTNOTES.ibb[ibbMode];
+    document.getElementById('ibb-run-btn').className = ibbMode === 'runs' ? 'active' : '';
+    document.getElementById('ibb-pct-btn').className = ibbMode === 'pct'  ? 'active' : '';
+
+    const tbody = document.getElementById('ibb-body');
+    tbody.innerHTML = IBB_DATA.map((r, i) => {
+        const bg = i % 2 === 0 ? 'bg-[#192633]' : 'bg-[#101922]';
+        const c0 = fmtCell(r.d0, r.re0, ibbMode);
+        const c1 = fmtCell(r.d1, r.re1, ibbMode);
+        const c2 = fmtCell(r.d2, r.re2, ibbMode);
+        const labelSuffix = !r.reliable
+            ? ' <span class="text-xs text-[#92adc9] italic">(never IBBed)</span>'
+            : '';
+        return `<tr class="${bg} hover:bg-[#233648]/60 transition-colors">
+            <td class="text-left px-4 py-3 border-t border-[#233648]">
+                <span class="dw">${diamond(r.state)}<span>${r.label}${labelSuffix}</span></span>
+            </td>
+            ${c0}${c1}${c2}
+        </tr>`;
+    }).join('');
+}
+
+function setSacMode(m) { sacMode = m; renderSac(); }
+function setIbbMode(m) { ibbMode = m; renderIbb(); }
+
+renderSac();
+renderIbb();
+</script>
+</body>
+</html>

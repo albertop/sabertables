@@ -1,0 +1,10 @@
+# Herramientas de desarrollo. No van en la imagen de Docker.
+ruff>=0.16.2
+mypy>=2.3.0
+pandas-stubs
+pytest>=9.1.1
+httpx
+
+# Solo para regenerar la imagen de tarjeta social con utils/build_og_image.py.
+# NO entra en la imagen de produccion: lo que se sirve es el PNG ya generado.
+pillow>=12.0.0

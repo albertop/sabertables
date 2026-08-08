@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RE Impact Reliability Mock</title>
+  <style>
+    :root {
+      --bg: #11141b;
+      --card: #1b2230;
+      --text: #ecf0f7;
+      --muted: #9aa9c3;
+      --header: #2c3f67;
+      --line: #2a354b;
+      --high: #0f4d16;
+      --med: #6b5608;
+      --low: #6b1f1f;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Lexend", "Segoe UI", sans-serif;
+      background: radial-gradient(1200px 500px at 20% -10%, #21304e 0%, transparent 60%), var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
+
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: linear-gradient(180deg, #1f293a 0%, var(--card) 100%);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }
+
+    .head {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .title {
+      font-weight: 700;
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      padding: 8px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 920px;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 8px;
+      text-align: center;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      background: var(--header);
+      font-weight: 700;
+    }
+
+    td.left {
+      text-align: left;
+      font-weight: 600;
+      background: #1a2435;
+      min-width: 190px;
+    }
+
+    .badge {
+      display: inline-block;
+      min-width: 74px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+
+    .val-good {
+      background: #1d7a2b;
+      color: #fff;
+    }
+
+    .val-mid {
+      background: #d89211;
+      color: #111;
+    }
+
+    .val-low {
+      background: #b62f2f;
+      color: #fff;
+    }
+
+    .reliability-medium {
+      border: 1px dashed rgba(255, 255, 255, 0.88);
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28);
+      opacity: 0.92;
+    }
+
+    .reliability-low {
+      border: 2px dotted rgba(255, 255, 255, 0.95);
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28);
+      opacity: 0.90;
+    }
+
+    .rel-flag {
+      font-size: 11px;
+      margin-left: 4px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .rel-medium {
+      color: #fff2a8;
+    }
+
+    .rel-low {
+      color: #ffd1d1;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 12px 16px 16px;
+      border-top: 1px solid var(--line);
+      background: #182130;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid #3b4d6e;
+      background: #1f2b40;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-high { background: var(--high); }
+    .dot-med { background: var(--med); }
+    .dot-low { background: var(--low); }
+
+    .note {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="head">
+        <div class="title">RE Impact Analysis - Pitcher-Batter Times Faced</div>
+        <div class="sub">
+          Mock only: reliability is adaptive per rendered table and season filter.<br />
+          Hover text example: n = 1,287 (17th percentile in this table).
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Runners</th>
+              <th>Handedness</th>
+              <th>1st Time</th>
+              <th>2nd Time</th>
+              <th>3rd+ Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="left" rowspan="2">1st &amp; 3rd</td>
+              <td>Same</td>
+              <td>N/A</td>
+              <td title="n = 14,406 | 68th percentile"><span class="badge val-mid">2.61%</span></td>
+              <td title="n = 9,794 | 54th percentile"><span class="badge val-good">6.64%</span></td>
+            </tr>
+            <tr>
+              <td>Platoon</td>
+              <td>N/A</td>
+              <td title="n = 17,810 | 75th percentile"><span class="badge val-mid">3.69%</span></td>
+              <td title="n = 12,568 | 62nd percentile"><span class="badge val-mid">3.32%</span></td>
+            </tr>
+
+            <tr>
+              <td class="left" rowspan="2">Loaded</td>
+              <td>Same</td>
+              <td>N/A</td>
+              <td title="n = 10,522 | 26th percentile"><span class="badge val-low reliability-medium">-0.08%<span class="rel-flag rel-medium">!</span></span></td>
+              <td title="n = 6,443 | 12th percentile"><span class="badge val-mid reliability-low">4.50%<span class="rel-flag rel-low">!!</span></span></td>
+            </tr>
+            <tr>
+              <td>Platoon</td>
+              <td>N/A</td>
+              <td title="n = 12,749 | 38th percentile"><span class="badge val-mid reliability-medium">1.90%<span class="rel-flag rel-medium">!</span></span></td>
+              <td title="n = 7,887 | 16th percentile"><span class="badge val-mid reliability-low">4.97%<span class="rel-flag rel-low">!!</span></span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="legend">
+        <span class="chip"><span class="dot dot-high"></span> Solid reliability: higher relative n in this table</span>
+        <span class="chip"><span class="dot dot-med"></span> Medium reliability: slight dim + dashed border + ! marker</span>
+        <span class="chip"><span class="dot dot-low"></span> Low reliability: dim + dotted border + !! marker</span>
+      </div>
+    </div>
+
+    <div class="note">
+      This is a visual prototype only. Values/colors are sample formatting to show the reliability treatment layered on top of heatmap colors.
+    </div>
+  </div>
+</body>
+</html>

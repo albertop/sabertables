@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  sabertables.com:
+    # Ultima version construida en docker_images/ (8 ago 2026).
+    #
+    # OJO con el numero del medio: NO es el anio de compilacion, es la ultima
+    # temporada que llevan los datos. La 1.2025.33 se construyo en abril de 2026.
+    #
+    # OJO: la version que corre de verdad se cambia en el stack de Portainer, no
+    # aqui (ver docs/OPERACION_ANUAL.md paso 7), asi que este fichero es plantilla y
+    # se desactualiza solo. Al publicar una version nueva conviene subirla tambien
+    # aqui, o al menos no dejar un numero que enganie a quien lo lea.
+    image: sabertables:1.2025.34
+    container_name: sabertables.com
+    # Atado a 127.0.0.1 y NO a todas las interfaces.
+    #
+    # Con "3001:8000" el puerto quedaba publicado en todas: si 3001 es alcanzable
+    # desde fuera, se llega a la app SALTANDOSE nginx -- y con ello el TLS, los
+    # limites de nginx y cualquier proteccion que viva alli. Todo el trabajo de
+    # validar Host, Origin y X-Forwarded-For se rodea entrando por la puerta de
+    # atras.
+    #
+    # Es seguro aqui porque nginx corre en el HOST (/etc/nginx/sites-available/),
+    # no en otro contenedor, asi que alcanza 127.0.0.1:3001 sin problema. Si algun
+    # dia nginx se mueve a un contenedor, esto hay que revertirlo y conectarlos por
+    # una red de Docker en su lugar.
+    ports:
+      - "127.0.0.1:3001:8000"
+    # El .env NO entra en la imagen: el Dockerfile hace COPY app/ y el fichero
+    # esta en la raiz. Sin esto, todo cae a los valores por defecto del codigo,
+    # y ENVIRONMENT vale "development" -- o sea que en produccion no se aplicaba
+    # ni el redirect a HTTPS, ni HSTS, ni verify_origin, porque las tres estan
+    # condicionadas a == 'production'.
+    environment:
+      ENVIRONMENT: production
+      # 2 y no 4: los workers NO comparten memoria, cada uno carga su copia de
+      # los parquets. Medido: 427 MB con 4 workers tras pedir tres tablas
+      # pesadas, 226 MB con 2. Y no se pierde concurrencia -- worker_class es
+      # UvicornWorker, asincrono: 4 workers no dan 4x de capacidad, dan 4 copias.
+      WORKERS: 2
+      LOG_LEVEL: INFO
+      # Exige Origin/Referer conocido en /api/generate-table. Sube el coste de
+      # usar la API desde fuera del site; no lo impide (ver 5.5 en docs/TODO.md).
+      API_REQUIRE_ORIGIN: "true"
+      # Rangos del proxy inverso. Con "*" cualquiera falsea X-Forwarded-For y se
+      # salta el rate limit; ajustar a la red real de nginx si no es 172.16/12.
+      PROXY_TRUSTED_IPS: "127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+      # Hosts aceptados en la cabecera Host. El nginx del VPS usa
+      # `proxy_set_header Host $$host`, o sea que pasa el original sin reescribir.
+      # localhost es OBLIGATORIO: el HEALTHCHECK llama a localhost:8000.
+      ALLOWED_HOSTS: "sabertables.com,www.sabertables.com,localhost,127.0.0.1"
+      # A donde redirige el 308 a HTTPS cuando el Host pedido no esta permitido.
+      CANONICAL_HOST: "sabertables.com"
+    healthcheck:
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    # SIN limite de memoria, a proposito.
+    #
+    # Habia limits.memory 512M y reservations 256M bajo `deploy:`, que ademas
+    # SOLO lo respeta Docker Swarm -- con `docker compose up` normal se ignora.
+    # De ahi que el contenedor llegara a 516 MB con un "limite" de 512 sin que
+    # nadie lo matara: el limite no existia, solo lo parecia.
+    #
+    # Se quita en vez de convertirlo en mem_limit porque las temporadas crecen y
+    # un techo fijo se convierte en una caida sorpresa dentro de unos anos.
+    #
+    # Medido hoy: 226 MB con 2 workers (116 temporadas, 13.8 MB de parquets). El
+    # crecimiento es lento -- 0.12 MB de datos por temporada, ~4 MB de memoria al
+    # ano contando las dos copias -- asi que el consumo esta dominado por Python,
+    # pandas y pyarrow, no por los datos.
+    #
+    # OJO EN UN VPS COMPARTIDO: sin techo, una fuga o un pico se lleva por delante
+    # a los demas sitios. Si eso preocupa, la forma correcta es `mem_limit` (que
+    # si aplica fuera de Swarm) con un valor holgado, no `deploy.resources`.
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "app=sabertables"

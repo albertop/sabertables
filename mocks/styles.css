@@ -1,0 +1,130 @@
+/* Run Expectancy Tables - Custom Styles */
+
+:root {
+    --primary: #137fec;
+    --background-light: #f6f7f8;
+    --background-dark: #101922;
+    --surface-dark: #192633;
+    --border-dark: #233648;
+    --text-secondary: #92adc9;
+}
+
+body {
+    font-family: 'Lexend', 'Noto Sans', sans-serif;
+    background-color: var(--background-dark);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #192633;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #324d67;
+    border-radius: 4px;
+}
+
+/* Custom utilities */
+.bg-surface-dark { background-color: var(--surface-dark); }
+.bg-background-dark { background-color: var(--background-dark); }
+.bg-primary { background-color: var(--primary) !important; }
+.text-primary { color: var(--primary); }
+.text-secondary-custom { color: var(--text-secondary); }
+.border-dark { border-color: var(--border-dark) !important; }
+
+.sticky-left-0 {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+}
+
+.sticky-left-100 {
+    position: sticky;
+    left: 60px;
+    z-index: 10;
+}
+
+.z-20 { z-index: 20; }
+
+.hover-bg-primary:hover { background-color: rgba(19, 127, 236, 0.05); }
+
+.fill-surface-dark { fill: var(--surface-dark); }
+.stroke-text-secondary { stroke: var(--text-secondary); }
+.fill-primary { fill: var(--primary); }
+.stroke-primary { stroke: var(--primary); }
+
+.group:hover .group-hover-bg {
+    background-color: var(--background-dark);
+}
+
+main {
+    flex-grow: 1;
+}
+
+.btn-primary-custom {
+    background-color: var(--primary);
+    border: none;
+    color: white;
+    transition: all 0.3s;
+    box-shadow: 0 10px 25px rgba(19, 127, 236, 0.2);
+}
+
+.btn-primary-custom:hover {
+    background-color: rgba(19, 127, 236, 0.9);
+    color: white;
+}
+
+.form-select-custom {
+    appearance: none;
+    background-color: var(--surface-dark);
+    border: 1px solid var(--border-dark);
+    color: white;
+    height: 48px;
+    border-radius: 0.5rem;
+    cursor: pointer;
+}
+
+.form-select-custom:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.2rem rgba(19, 127, 236, 0.25);
+    outline: none;
+}
+
+.select-wrapper {
+    position: relative;
+}
+
+.select-icon {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--text-secondary);
+}
+
+.table-dark-custom {
+    background-color: rgba(25, 38, 51, 0.3);
+}
+
+.table-dark-custom thead {
+    background-color: var(--primary);
+}
+
+.table-dark-custom tbody tr:hover {
+    background-color: rgba(19, 127, 236, 0.05);
+}
+
+.footer-custom {
+    background-color: var(--surface-dark);
+    border-top: 1px solid var(--border-dark);
+}

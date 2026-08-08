@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Run Expectancy Tables Home</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Noto+Sans:wght@300..900&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <link href="styles.css" rel="stylesheet"/>
+</head>
+<body>
+    <main class="d-flex flex-column align-items-center w-100">
+        <div class="container-xl px-4 py-5">
+            <div class="row align-items-center">
+                <div class="col-12">
+                    <h1 class="text-white display-3 fw-black mb-4 d-flex align-items-center gap-3">
+                        <img src="logo.png" alt="Logo" style="height: 1em;">
+                        MLB Run Expectancy Tables
+                    </h1>
+                    <h2 class="text-secondary-custom fs-5 fw-normal lh-lg">
+                        Explore comprehensive historical RE24 and RE288 matrices to uncover run value probabilities. Gain deeper insights into game situations by analyzing expected runs across various base-out states and ball-strike counts. <br/><br/>
+                        <span class="d-block small">
+                            <strong>RE24:</strong> Expected runs from base-out state until inning end.<br/>
+                            <strong>RE288:</strong> Adds ball-strike counts for more granular context.
+                        </span>
+                    </h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="container-xl px-4">
+            <div class="bg-surface-dark border-top border-bottom border-dark py-3 rounded-3">
+                <div class="px-3">
+                    <div class="mb-4">
+                        <h2 class="text-white h3 fw-bold mb-2">Data Configuration</h2>
+                    <p class="text-secondary-custom small">Select parameters to generate the run expectancy matrix.</p>
+                </div>
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label text-white fw-medium small">From Season</label>
+                        <div class="select-wrapper">
+                            <select class="form-select form-select-custom">
+                                <option value="2023">2023</option>
+                                <option value="2022">2022</option>
+                                <option value="2021">2021</option>
+                                <option value="2020">2020</option>
+                            </select>
+                            <span class="material-symbols-outlined select-icon">expand_more</span>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label text-white fw-medium small">To Season</label>
+                        <div class="select-wrapper">
+                            <select class="form-select form-select-custom">
+                                <option value="2023">2023</option>
+                                <option value="2022">2022</option>
+                                <option value="2021">2021</option>
+                                <option value="2020">2020</option>
+                            </select>
+                            <span class="material-symbols-outlined select-icon">expand_more</span>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label text-white fw-medium small">Matrix Type</label>
+                        <div class="select-wrapper">
+                            <select class="form-select form-select-custom">
+                                <option value="RE24" selected>RE24</option>
+                                <option value="RE288">RE288</option>
+                            </select>
+                            <span class="material-symbols-outlined select-icon">expand_more</span>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <button class="btn btn-primary-custom w-100 d-flex align-items-center justify-content-center gap-2" style="height: 48px;">
+                            <span class="material-symbols-outlined">refresh</span>
+                            Generate Table
+                        </button>
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container-xl px-4 py-5">
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <h3 class="text-white h4 fw-bold d-flex align-items-center gap-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    Matrix Preview
+                </h3>
+            </div>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0">
+                        <thead>
+                            <tr class="bg-primary">
+                                <th class="p-4 text-center text-uppercase small fw-bold sticky-left-0 bg-primary">Base State</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary">0 Outs</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary">1 Out</th>
+                                <th class="p-4 text-center text-uppercase small fw-bold bg-primary">2 Outs</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 fw-medium text-secondary-custom sticky-left-0 bg-background-dark border-end border-dark text-center align-middle" title="Empty Bases">
+                                    <svg class="mx-auto overflow-visible" width="48" height="48" viewBox="0 0 24 24">
+                                        <path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+                                    </svg>
+                                </td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.461</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.243</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.095</td>
+                            </tr>
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 fw-medium text-secondary-custom sticky-left-0 bg-background-dark border-end border-dark text-center align-middle" title="1st Base">
+                                    <svg class="mx-auto overflow-visible" width="48" height="48" viewBox="0 0 24 24">
+                                        <path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+                                        <rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+                                    </svg>
+                                </td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.831</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.489</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.209</td>
+                            </tr>
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 fw-medium text-secondary-custom sticky-left-0 bg-background-dark border-end border-dark text-center align-middle" title="2nd Base">
+                                    <svg class="mx-auto overflow-visible" width="48" height="48" viewBox="0 0 24 24">
+                                        <path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+                                        <rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+                                    </svg>
+                                </td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">1.068</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.644</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.304</td>
+                            </tr>
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 fw-medium text-secondary-custom sticky-left-0 bg-background-dark border-end border-dark text-center align-middle" title="1st & 2nd">
+                                    <svg class="mx-auto overflow-visible" width="48" height="48" viewBox="0 0 24 24">
+                                        <path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+                                        <rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+                                        <rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+                                    </svg>
+                                </td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">1.373</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.864</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.412</td>
+                            </tr>
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 fw-medium text-secondary-custom sticky-left-0 bg-background-dark border-end border-dark text-center align-middle" title="3rd Base">
+                                    <svg class="mx-auto overflow-visible" width="48" height="48" viewBox="0 0 24 24">
+                                        <path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+                                        <rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+                                        <rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+                                    </svg>
+                                </td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">1.334</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.908</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.342</td>
+                            </tr>
+                            <tr class="hover-bg-primary group">
+                                <td class="p-2 fw-medium text-secondary-custom sticky-left-0 bg-background-dark border-end border-dark text-center align-middle" title="Bases Loaded">
+                                    <svg class="mx-auto overflow-visible" width="48" height="48" viewBox="0 0 24 24">
+                                        <path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+                                        <rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+                                        <rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+                                        <rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+                                    </svg>
+                                </td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">2.282</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">1.520</td>
+                                <td class="p-2 text-center font-monospace fs-6 align-middle">0.728</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-6">
+                            <div class="mb-1">
+                                <span class="text-white fw-bold small">Download Full Dataset</span>
+                            </div>
+                            <span class="text-secondary-custom" style="font-size: 0.75rem;">Available in CSV and JSON formats.</span>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="d-flex flex-column flex-sm-row gap-3 align-items-center justify-content-md-end">
+                                <div class="d-flex align-items-center gap-2 w-100" style="max-width: 200px;">
+                                    <label class="text-white small fw-medium text-nowrap">Format:</label>
+                                    <div class="select-wrapper flex-grow-1">
+                                        <select class="form-select form-select-sm form-select-custom" style="height: 40px;">
+                                            <option value="CSV">CSV</option>
+                                            <option value="JSON">JSON</option>
+                                            <option value="XML">XML</option>
+                                        </select>
+                                        <span class="material-symbols-outlined select-icon" style="font-size: 20px;">expand_more</span>
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary-custom d-flex align-items-center gap-2 px-4" style="height: 40px;">
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="container-xl px-4">
+        <footer class="footer-custom py-4 mt-5 rounded-3">
+            <div class="px-4">
+                <div class="row align-items-center g-3">
+                    <div class="col-12">
+                    <div class="d-flex flex-wrap justify-content-center justify-content-md-between align-items-center gap-3">
+                        <a class="small fw-medium text-secondary-custom text-decoration-none" href="mailto:runexpectancy@gmail.com">runexpectancy@gmail.com</a>
+                        <p class="small text-secondary-custom mb-0 text-end" style="max-width: 500px; opacity: 0.6; font-size: 0.75rem;">
+                            The information used here was obtained free of charge from and is copyrighted by Retrosheet. Interested parties may contact Retrosheet at "www.retrosheet.org".
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

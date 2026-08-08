@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PH Impact Mock</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Noto+Sans:wght@300..900&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "primary":         "#137fec",
+                    "background-dark": "#101922",
+                    "surface-dark":    "#192633",
+                    "border-dark":     "#233648",
+                    "text-secondary":  "#92adc9",
+                },
+                fontFamily: {
+                    "display": ["Lexend", "sans-serif"],
+                    "body":    ["Noto Sans", "sans-serif"],
+                },
+            },
+        },
+    }
+</script>
+<style>
+  body { font-family: 'Noto Sans', sans-serif; }
+  h1, h2 { font-family: 'Lexend', sans-serif; }
+
+  /* matchup tab strip */
+  .tab-strip {
+    display: inline-flex;
+    border: 1px solid #233648;
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 0.8rem;
+  }
+  .tab-strip button {
+    padding: 6px 14px;
+    background: transparent;
+    color: #92adc9;
+    border: none;
+    border-right: 1px solid #233648;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+  }
+  .tab-strip button:last-child { border-right: none; }
+  .tab-strip button.active {
+    background: #137fec;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* value colours */
+  .val-pos { color: #4ade80; font-weight: 600; font-family: monospace; }
+  .val-neg { color: #f87171; font-weight: 600; font-family: monospace; }
+  .val-neu { color: #e2e8f0; font-weight: 600; font-family: monospace; }
+  .na-cell { color: #92adc9; font-style: italic; }
+
+  /* diamond */
+  .dw { display: inline-flex; align-items: center; gap: 7px; }
+  .base-empty { fill: #233648; stroke: #92adc9; stroke-width: 1.5; }
+  .base-on    { fill: #137fec; stroke: #137fec; stroke-width: 1.5; }
+
+  .n-badge { font-size: 0.65rem; color: #92adc9; margin-left: 3px; }
+</style>
+</head>
+<body class="bg-[#101922] text-white min-h-screen p-8">
+<div class="max-w-[860px] mx-auto flex flex-col gap-6">
+
+  <!-- Header -->
+  <div class="flex flex-col gap-1">
+    <h2 class="text-xl font-bold leading-tight">
+      Pinch-Hit Run Value Impact
+      <span class="ml-2 text-xs font-semibold bg-[#137fec]/20 text-[#137fec] border border-[#137fec]/40 rounded px-2 py-0.5">
+        2000–2024 avg
+      </span>
+    </h2>
+    <p class="text-[#92adc9] text-sm">
+      Average run value of all PH plate appearances by base-out state.
+      <em class="text-xs block mt-1">Values are illustrative placeholders — real data pending.</em>
+    </p>
+  </div>
+
+  <!-- Matchup filter -->
+  <div class="flex flex-col gap-2">
+    <span class="text-xs text-[#92adc9] uppercase tracking-wide font-semibold">Matchup</span>
+    <div class="tab-strip">
+      <button class="active" onclick="setMatchup('all')">All</button>
+      <button onclick="setMatchup('LR')">L bat vs R pit <span class="opacity-60 text-xs">(platoon ✓)</span></button>
+      <button onclick="setMatchup('RL')">R bat vs L pit <span class="opacity-60 text-xs">(platoon ✓)</span></button>
+      <button onclick="setMatchup('LL')">L bat vs L pit</button>
+      <button onclick="setMatchup('RR')">R bat vs R pit</button>
+    </div>
+    <p class="text-xs text-[#92adc9]" id="matchup-note">Showing all PH appearances regardless of matchup.</p>
+  </div>
+
+  <!-- Table -->
+  <div class="overflow-x-auto rounded-lg border border-[#233648]">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr>
+          <th class="bg-[#137fec] text-white text-left px-4 py-3 font-semibold w-[240px]">Scenario</th>
+          <th class="bg-[#137fec] text-white text-center px-4 py-3 font-semibold">0 Outs</th>
+          <th class="bg-[#137fec] text-white text-center px-4 py-3 font-semibold">1 Out</th>
+          <th class="bg-[#137fec] text-white text-center px-4 py-3 font-semibold">2 Outs</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Event count -->
+  <p class="text-xs text-[#92adc9]" id="event-count"></p>
+
+  <!-- Legend -->
+  <div class="flex flex-wrap gap-4 text-xs text-[#92adc9] border-t border-[#233648] pt-4">
+    <span><span class="val-pos">+0.xxx</span> — above-average run production</span>
+    <span><span class="val-neg">−0.xxx</span> — below-average run production</span>
+    <span><span class="na-cell">N/A</span> — insufficient sample (n &lt; 50)</span>
+  </div>
+
+</div>
+
+<script>
+// ── SVG diamond ───────────────────────────────────────────────────
+function diamond(state) {
+    const on1 = state[0]==='1', on2 = state[1]==='1', on3 = state[2]==='1';
+    const c = on => on ? 'base-on' : 'base-empty';
+    return `<svg width="20" height="20" viewBox="0 0 20 20">
+        <polygon points="10,3 14,7 10,11 6,7"  class="${c(on2)}"/>
+        <polygon points="3,10 7,6 11,10 7,14"  class="${c(on3)}"/>
+        <polygon points="17,10 13,6 9,10 13,14" class="${c(on1)}"/>
+        <polygon points="10,17 14,13 10,9 6,13" class="base-empty"/>
+    </svg>`;
+}
+
+// ── Scenario list (fixed row order) ──────────────────────────────
+const SCENARIOS = [
+    { state:"000", label:"Bases empty" },
+    { state:"100", label:"Runner on 1B" },
+    { state:"010", label:"Runner on 2B" },
+    { state:"001", label:"Runner on 3B" },
+    { state:"110", label:"Runners on 1B & 2B" },
+    { state:"101", label:"Runners on 1B & 3B" },
+    { state:"011", label:"Runners on 2B & 3B" },
+    { state:"111", label:"Bases loaded" },
+];
+
+// ── Illustrative data per matchup ─────────────────────────────────
+// Keyed by matchup → state → [outs0, outs1, outs2] each {val, n}
+const DATA = {
+    all: {
+        "000": [{val:-0.021,n:42180},{val:-0.018,n:51320},{val:-0.009,n:38450}],
+        "100": [{val:-0.014,n:18920},{val:-0.011,n:22140},{val:-0.007,n:17630}],
+        "010": [{val: 0.012,n:8340}, {val: 0.016,n:12750},{val: 0.022,n:15230}],
+        "001": [{val: 0.031,n:3210}, {val: 0.028,n:4850}, {val: 0.019,n:6120}],
+        "110": [{val: 0.022,n:5640}, {val: 0.025,n:8310}, {val: 0.030,n:9820}],
+        "101": [{val:  null,n:0},    {val: 0.034,n:840},  {val: 0.028,n:1420}],
+        "011": [{val: 0.048,n:1840}, {val: 0.053,n:2970}, {val: 0.041,n:3810}],
+        "111": [{val: 0.061,n:2140}, {val: 0.068,n:3590}, {val: 0.055,n:4870}],
+    },
+    // Platoon advantage L bat vs R pit — bigger positive values
+    LR: {
+        "000": [{val: 0.008,n:16420},{val: 0.011,n:19830},{val: 0.015,n:14990}],
+        "100": [{val: 0.013,n:7240}, {val: 0.018,n:8590}, {val: 0.021,n:6780}],
+        "010": [{val: 0.034,n:3210}, {val: 0.038,n:4920}, {val: 0.044,n:5870}],
+        "001": [{val: 0.056,n:1210}, {val: 0.049,n:1870}, {val: 0.038,n:2350}],
+        "110": [{val: 0.041,n:2170}, {val: 0.046,n:3190}, {val: 0.051,n:3780}],
+        "101": [{val:  null,n:0},    {val: 0.058,n:320},  {val: 0.049,n:550}],
+        "011": [{val: 0.072,n:710},  {val: 0.079,n:1140}, {val: 0.065,n:1470}],
+        "111": [{val: 0.089,n:820},  {val: 0.094,n:1380}, {val: 0.081,n:1880}],
+    },
+    // Platoon advantage R bat vs L pit
+    RL: {
+        "000": [{val: 0.006,n:9840}, {val: 0.009,n:12100},{val: 0.013,n:8920}],
+        "100": [{val: 0.010,n:4320}, {val: 0.014,n:5290}, {val: 0.018,n:4060}],
+        "010": [{val: 0.029,n:1940}, {val: 0.033,n:2980}, {val: 0.040,n:3520}],
+        "001": [{val: 0.048,n:740},  {val: 0.043,n:1120}, {val: 0.034,n:1410}],
+        "110": [{val: 0.036,n:1310}, {val: 0.041,n:1980}, {val: 0.046,n:2340}],
+        "101": [{val:  null,n:0},    {val: 0.051,n:190},  {val: 0.044,n:330}],
+        "011": [{val: 0.065,n:430},  {val: 0.071,n:690},  {val: 0.058,n:890}],
+        "111": [{val: 0.080,n:490},  {val: 0.086,n:820},  {val: 0.073,n:1120}],
+    },
+    // No platoon L vs L — negative penalty
+    LL: {
+        "000": [{val:-0.041,n:8340}, {val:-0.038,n:10210},{val:-0.029,n:7640}],
+        "100": [{val:-0.031,n:3810}, {val:-0.028,n:4450}, {val:-0.021,n:3520}],
+        "010": [{val:-0.008,n:1640}, {val:-0.004,n:2510}, {val: 0.002,n:3010}],
+        "001": [{val: 0.011,n:640},  {val: 0.008,n:990},  {val:-0.001,n:1240}],
+        "110": [{val:-0.002,n:1140}, {val: 0.001,n:1680}, {val: 0.006,n:1990}],
+        "101": [{val:  null,n:0},    {val: 0.014,n:170},  {val: 0.009,n:289}],
+        "011": [{val: 0.021,n:380},  {val: 0.026,n:590},  {val: 0.018,n:760}],
+        "111": [{val: 0.034,n:440},  {val: 0.040,n:720},  {val: 0.029,n:980}],
+    },
+    // No platoon R vs R — negative penalty
+    RR: {
+        "000": [{val:-0.038,n:7580}, {val:-0.034,n:9180}, {val:-0.025,n:6900}],
+        "100": [{val:-0.028,n:3550}, {val:-0.024,n:3810}, {val:-0.018,n:3270}],
+        "010": [{val:-0.005,n:1550}, {val:-0.001,n:2340}, {val: 0.005,n:2830}],
+        "001": [{val: 0.009,n:620},  {val: 0.006,n:870},  {val:-0.003,n:1120}],
+        "110": [{val:-0.001,n:1020}, {val: 0.003,n:1440}, {val: 0.007,n:1710}],
+        "101": [{val:  null,n:0},    {val: 0.012,n:130},  {val: 0.007,n:251}],
+        "011": [{val: 0.018,n:320},  {val: 0.023,n:540},  {val: 0.016,n:690}],
+        "111": [{val: 0.031,n:390},  {val: 0.037,n:670},  {val: 0.026,n:890}],
+    },
+};
+
+const MATCHUP_NOTES = {
+    all: "Showing all PH appearances regardless of matchup.",
+    LR:  "Left-handed batter vs right-handed pitcher — platoon advantage. The primary reason to PH.",
+    RL:  "Right-handed batter vs left-handed pitcher — platoon advantage.",
+    LL:  "Left-handed batter vs left-handed pitcher — no platoon advantage.",
+    RR:  "Right-handed batter vs right-handed pitcher — no platoon advantage.",
+};
+
+const MIN_N = 50;
+let activeMatchup = 'all';
+
+function fmtCell(cell) {
+    if (cell.val === null || cell.n < MIN_N) {
+        return `<td class="text-center px-4 py-3 border-t border-[#233648] na-cell">N/A</td>`;
+    }
+    const sign = cell.val >= 0 ? '+' : '';
+    const disp = `${sign}${cell.val.toFixed(3)}`;
+    const cls  = cell.val >  0.005 ? 'val-pos'
+               : cell.val < -0.005 ? 'val-neg'
+               : 'val-neu';
+    const n = cell.n.toLocaleString();
+    return `<td class="text-center px-4 py-3 border-t border-[#233648]">
+        <span class="${cls}">${disp}</span><span class="n-badge">(n=${n})</span>
+    </td>`;
+}
+
+function render() {
+    const dataset = DATA[activeMatchup];
+    let totalN = 0;
+
+    document.getElementById('matchup-note').textContent = MATCHUP_NOTES[activeMatchup];
+
+    const tbody = document.getElementById('table-body');
+    tbody.innerHTML = SCENARIOS.map((s, i) => {
+        const bg    = i % 2 === 0 ? 'bg-[#192633]' : 'bg-[#101922]';
+        const cells = dataset[s.state];
+        cells.forEach(c => { totalN += c.n; });
+        return `<tr class="${bg} hover:bg-[#233648]/60 transition-colors">
+            <td class="text-left px-4 py-3 border-t border-[#233648]">
+                <span class="dw">${diamond(s.state)}<span>${s.label}</span></span>
+            </td>
+            ${cells.map(fmtCell).join('')}
+        </tr>`;
+    }).join('');
+
+    document.getElementById('event-count').textContent =
+        `${totalN.toLocaleString()} pinch-hit plate appearances`;
+}
+
+function setMatchup(m) {
+    activeMatchup = m;
+    document.querySelectorAll('.tab-strip button').forEach((btn, i) => {
+        btn.classList.toggle('active', ['all','LR','RL','LL','RR'][i] === m);
+    });
+    render();
+}
+
+render();
+</script>
+</body>
+</html>

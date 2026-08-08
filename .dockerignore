@@ -1,0 +1,85 @@
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.git
+.gitignore
+.pytest_cache
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+.env
+.env.local
+.DS_Store
+mocks/
+check_memory.py
+test_re24_transitions.py
+utils/
+.vscode/
+.idea/
+*.log
+logs/
+# `logs/` solo casa con <raiz>/logs. Los patrones de .dockerignore son
+# relativos al contexto, asi que app/logs/ entraba en la imagen: 673 KB de
+# logs de diciembre viajando en cada despliegue, y ademas datos de acceso
+# que no pintan nada dentro del contenedor.
+app/logs/
+**/logs/
+.pytest
+
+# Docker files
+Dockerfile
+docker-compose.yml
+# DOCKER.md se retiro a _not_in_use/docs/ (8 ago 2026); la documentacion
+# viva esta en docs/, que ya se excluye mas abajo.
+
+# Documentation
+*.md
+
+# Scripts
+*.ps1
+*.sh
+
+# Validation and testing
+validate-deployment.*
+check_memory.py
+test_*.py
+
+# Build artifacts
+docker_images/
+certs/
+
+# Nginx config (handled separately on host)
+nginx.conf
+
+# Caches de herramientas.
+#
+# NO entraban en la imagen --el Dockerfile solo hace COPY app/ y estas viven en
+# la raiz; comprobado sobre el .tar de 1.2025.34: 0 rutas de cache en 13.983
+# entradas-- pero SI se enviaban al demonio de Docker como parte del contexto de
+# construccion. .mypy_cache son 63 MB que viajaban en cada build para nada.
+.mypy_cache
+.ruff_cache
+htmlcov
+logs
+*.log

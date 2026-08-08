@@ -1,0 +1,457 @@
+/* Run Expectancy Tables - Custom Styles */
+
+/* Skip Navigation Link for Accessibility */
+.skip-nav {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--primary);
+    color: white;
+    padding: 8px 16px;
+    text-decoration: none;
+    border-radius: 0 0 4px 0;
+    z-index: 100;
+    font-weight: 600;
+}
+
+.skip-nav:focus {
+    top: 0;
+    outline: 3px solid #fff;
+    outline-offset: 2px;
+}
+
+:root {
+    --primary: #137fec;
+    --background-light: #f6f7f8;
+    --background-dark: #101922;
+    --surface-dark: #192633;
+    --border-dark: #233648;
+    --text-secondary: #92adc9;
+}
+
+body {
+    font-family: 'Lexend', 'Noto Sans', sans-serif;
+    background-color: var(--background-dark);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #192633;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #324d67;
+    border-radius: 4px;
+}
+
+/* Custom utilities */
+.bg-surface-dark { background-color: var(--surface-dark); }
+.bg-background-dark { background-color: var(--background-dark); }
+.bg-primary { background-color: var(--primary) !important; }
+.text-primary { color: var(--primary); }
+.text-secondary-custom { color: var(--text-secondary); }
+.border-dark { border-color: var(--border-dark) !important; }
+
+.primary-badge {
+    background-color: var(--primary);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+    display: inline-block;
+    font-weight: 500;
+}
+
+.sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background-color: var(--surface-dark);
+}
+
+/* Use monospaced font for numeric table cells */
+table td:not(.label-cell):not(.svg-cell),
+table th {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 400;
+}
+
+/* Enhanced Focus Indicators for Accessibility */
+*:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.btn:focus-visible,
+.form-select:focus-visible,
+button:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(19, 127, 236, 0.2);
+}
+
+a:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+.sticky-left-0 {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+}
+
+.sticky-left-100 {
+    position: sticky;
+    left: 60px;
+    z-index: 10;
+}
+
+.z-20 { z-index: 20; }
+
+.hover-bg-primary:hover { background-color: rgba(19, 127, 236, 0.05); }
+
+.fill-surface-dark { fill: var(--surface-dark); }
+.stroke-text-secondary { stroke: var(--text-secondary); }
+.fill-primary { fill: var(--primary); }
+.stroke-primary { stroke: var(--primary); }
+
+.group:hover .group-hover-bg {
+    background-color: var(--background-dark);
+}
+
+main {
+    flex-grow: 1;
+}
+
+.btn-primary-custom {
+    background-color: var(--primary);
+    border: none;
+    color: white;
+    transition: all 0.3s;
+    box-shadow: 0 10px 25px rgba(19, 127, 236, 0.2);
+}
+
+.btn-primary-custom:hover {
+    background-color: rgba(19, 127, 236, 0.9);
+    color: white;
+}
+
+.form-select-custom {
+    appearance: none;
+    background-color: var(--surface-dark);
+    border: 1px solid var(--border-dark);
+    color: white;
+    height: 48px;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 1.125rem;
+}
+
+.form-select-custom option {
+    font-size: 1.125rem;
+}
+
+.form-select-custom:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.2rem rgba(19, 127, 236, 0.25);
+    outline: none;
+}
+
+.select-wrapper {
+    position: relative;
+}
+
+.select-icon {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--text-secondary);
+}
+
+.table-dark-custom {
+    background-color: rgba(25, 38, 51, 0.3);
+}
+
+.table-dark-custom thead {
+    background-color: var(--primary);
+}
+
+.table-dark-custom tbody tr:hover {
+    background-color: rgba(19, 127, 236, 0.05);
+}
+
+.footer-custom {
+    background-color: var(--surface-dark);
+    border-top: 1px solid var(--border-dark);
+}
+
+.parameter-note {
+    margin-top: 0.875rem;
+    padding: 0.75rem 0.875rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    border-top: 1px solid rgba(19, 127, 236, 0.25);
+    background: linear-gradient(180deg, rgba(19, 127, 236, 0.08), rgba(19, 127, 236, 0.03));
+    color: rgba(184, 192, 201, 0.92);
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+
+.parameter-note-icon {
+    color: var(--primary);
+    font-size: 1.05rem;
+    margin-top: 0.05rem;
+    flex-shrink: 0;
+}
+/* Button Heights */
+.btn-height-48 {
+    height: 48px;
+}
+
+.btn-height-40 {
+    height: 40px;
+}
+
+/* SVG Container */
+.svg-cell {
+    width: 48px;
+    padding: 0.25rem 0.25rem 0.15rem 0.25rem;
+}
+
+/* Label Cell */
+.label-cell {
+    width: 100px;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    padding-top: 0.25rem;
+    padding-bottom: 0.15rem;
+}
+
+.label-cell-sticky {
+    left: 48px;
+}
+
+/* Wider label cell for RE24 Values table only */
+#re24-table-container .label-cell {
+    width: 145px;
+}
+
+/* Select Wrapper Sizes */
+.select-wrapper-130 {
+    width: 100%;
+    max-width: 130px;
+}
+
+/* Icon Sizes */
+.icon-size-20 {
+    font-size: 20px;
+}
+
+/* Whitespace Control */
+.whitespace-nowrap {
+    white-space: nowrap;
+}
+
+/* Opacity Utilities */
+.opacity-80 {
+    opacity: 0.8;
+}
+
+.opacity-60 {
+    opacity: 0.6;
+}
+
+/* Font Size Utilities */
+.font-size-075 {
+    font-size: 0.75rem;
+}
+
+.font-size-07 {
+    font-size: 0.7rem;
+}
+
+/* Max Width Utilities */
+.max-w-500 {
+    max-width: 500px;
+}
+
+/* Narrower season selectors used for Break-Even Points mode */
+@media (min-width: 768px) {
+    #from-season-container.season-compact,
+    #to-season-container.season-compact {
+        flex: 0 0 140px;
+        max-width: 140px;
+    }
+}
+
+@media (min-width: 992px) {
+    #from-season-container.season-compact,
+    #to-season-container.season-compact {
+        flex: 0 0 124px;
+        max-width: 124px;
+    }
+}
+
+/* Wider Analysis dropdown for Break-Even mode */
+@media (min-width: 768px) {
+    #breakeven-type-container.analysis-wide {
+        flex: 0 0 260px;
+        max-width: 260px;
+    }
+}
+
+@media (min-width: 992px) {
+    #breakeven-type-container.analysis-wide {
+        flex: 0 0 300px;
+        max-width: 300px;
+    }
+}
+
+/* Table Cell Padding */
+.table-cell-compact {
+    padding-top: 0.25rem;
+    padding-bottom: 0.15rem;
+}
+
+/* RE24 Probabilities Table - Smaller Font Size */
+#probabilities-table-body,
+#probabilities-table-body td {
+    font-size: 0.95rem !important;
+}
+
+#probabilities-table-head th {
+    font-size: 1rem !important;
+}
+
+/* RE288 Tables - Smaller Font Size */
+#re288-table-body,
+#re288-table-body td {
+    font-size: 0.95rem !important;
+}
+
+#re288-table-head th {
+    font-size: 1rem !important;
+}
+
+/* Buy Me a Coffee - scale utility */
+.bmc-scale-90 {
+    transform: scale(0.9);
+    transform-origin: left center;
+}
+
+.bmc-scale-75 {
+    transform: scale(0.75);
+    transform-origin: left center;
+}
+
+.bmc-scale-50 {
+    transform: scale(0.5);
+    transform-origin: left center;
+}
+
+/* Force Buy Me a Coffee embed to shrink (script injects .bmc-btn-container/.bmc-btn markup) */
+.bmc-btn-container {
+    transform: scale(1);
+    transform-origin: left center;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+}
+
+.bmc-btn-container .bmc-btn {
+    height: auto !important;
+    padding: 12px 20px !important;
+    line-height: 1.4 !important;
+    font-size: 26px !important;
+}
+
+.bmc-btn-container img {
+    height: 30px !important;
+    width: auto !important;
+}
+
+/* Heatmap badge styles */
+.heatmap-badge {
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-block;
+    min-width: 50px;
+}
+
+.heatmap-badge-wide {
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-block;
+    min-width: 60px;
+}
+
+/* Sortable table headers */
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Table header with primary background */
+.th-primary-bg {
+    background-color: var(--primary);
+}
+
+/* Sticky column positioning for RE24 Transitions */
+.sticky-transitions-svg {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background-color: #212529;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+
+.sticky-transitions-from-state {
+    min-width: 110px;
+    position: sticky;
+    left: 50px;
+    z-index: 5;
+    background-color: #212529;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+
+.sticky-transitions-svg-header {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background-color: #0d6efd;
+}
+
+.sticky-transitions-from-state-header {
+    min-width: 110px;
+    position: sticky;
+    left: 50px;
+    z-index: 10;
+    background-color: #0d6efd;
+}
+
+.transitions-col-width {
+    min-width: 110px;
+}
+
+/* Row border separator for grouped data */
+.row-separator-3 {
+    border-bottom: 2px solid #495057;
+}
+
+/* Muted sort indicator */
+.sort-indicator-muted {
+    opacity: 0.3;
+}

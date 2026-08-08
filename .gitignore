@@ -1,0 +1,40 @@
+# Solo existe porque el proyecto no estaba en git: es donde iban las cosas
+# retiradas para poder recuperarlas. Con historial ya no hace falta subirlo.
+_not_in_use/
+
+# Configuracion por maquina, no secretos: las 8 claves son ENVIRONMENT, HOST,
+# PORT, WORKERS, LOG_LEVEL, LOG_RETENTION_DAYS, RATE_LIMIT y PRODUCTION_ORIGIN.
+# Se ignora porque el de esta maquina dice ENVIRONMENT=production, que no es lo
+# que quiere un clon, y porque el dia que haya usuario y contrasena ya estara
+# fuera. Subir un .env.example con las claves y sin valores.
+.env
+
+# app/data/ SI se versiona, a proposito.
+#
+# Son 14 MB de parquets regenerables con `python utils/run_all.py`, pero:
+#   - un clon recien hecho arranca y sirve tablas sin tocar SQL Server;
+#   - y es la unica copia de seguridad de los datos generados. Antes de git no
+#     habia ninguna: si se perdia el disco, se perdian.
+# El pipeline corre una o dos veces al ano, asi que el historial crece unos
+# 28 MB anuales. Nada para lo que GitHub admite.
+
+# Imagenes construidas, no fuente.
+docker_images/
+
+.venv/
+__pycache__/
+*.py[cod]
+app/logs/
+
+# Caches de las herramientas. .mypy_cache son 63 MB: sin esta linea entra entero
+# en el primer commit y ya no sale del historial.
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs del pipeline. app/logs/ ya estaba; este es el de la raiz, donde escribe
+# run_all.py con --log-file.
+logs/
+*.log

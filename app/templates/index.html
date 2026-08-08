@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+{# asset_version lo calcula app/main.py a partir del hash de app.js y styles.css.
+   No volver a escribirlo a mano aqui: cuando se olvidaba subirlo, el navegador
+   con cache seguia sirviendo la version anterior. #}
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"/>
+    <!-- La CSP la manda SecurityHeadersMiddleware en la cabecera, con un nonce
+         por peticion. Aqui habia una copia que permitia "https:" entero en
+         script-src: dos politicas se aplican las dos y gana la mas restrictiva,
+         asi que esta no relajaba nada, pero hacia creer que la politica era mucho
+         mas laxa de lo que es. Una sola fuente de verdad. -->
+    
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-6Q1J0M6JK8"></script>
+    <script nonce="{{ csp_nonce }}">
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-6Q1J0M6JK8');
+    </script>
+    
+    <title>MLB Sabermetrics Tables | RE24, Win Expectancy, WPA, Leverage Index</title>
+    <meta name="description" content="MLB run expectancy tables from real game data, {{ min_season }}-{{ max_season }}: RE24, RE288, win expectancy, WPA, leverage index, break-even points and park factors."/>
+    <meta name="keywords" content="MLB, run expectancy, win expectancy, win probability added, leverage index, break-even points, RE impact, RE24, RE288, baseball analytics, baseball statistics, sabermetrics, run values, base-out states, swing take, stolen base break-even, sacrifice bunt, intentional walk, pinch hitting, park factors, wOBA coefficients, Retrosheet, Statcast"/>
+    <meta name="author" content="MLB Sabermetrics Tables"/>
+    
+    <!-- Favicons -->
+    <link rel="icon" href="/static/images/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/images/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/images/favicon-32x32.png">
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://sabertables.com/"/>
+    
+    <!-- Sitemap -->
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml"/>
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website"/>
+    <meta property="og:url" content="https://sabertables.com/"/>
+    <meta property="og:title" content="MLB Sabermetrics Tables | RE24, Win Expectancy, WPA, Leverage Index"/>
+    <meta property="og:description" content="Interactive baseball analytics tools using real game data spanning {{ min_season }}-{{ max_season }}, sourced from Retrosheet and Statcast. Explore run expectancy, win expectancy, win probability added, leverage index, break-even points, park factors, and RE impact analysis."/>
+    <!-- og-image.png y NO logo.png.
+         logo.png es cuadrado (1024x1024) y aqui se declaraba 1200x630, que era
+         falso. Con `summary_large_image` la tarjeta recorta al centro en 2:1, y
+         sobre un logo circular eso cortaba justo por el texto "SABERTABLES.COM":
+         cada enlace compartido perdia el nombre del sitio. No se veia venir
+         porque esta imagen no se pinta en ninguna pagina -- solo la bajan los
+         rastreadores de Facebook, X, LinkedIn, WhatsApp y Slack.
+         og-image.png es 1200x630 de verdad, con el logo centrado, y se
+         regenera con `python utils/build_og_image.py`. -->
+    <meta property="og:image" content="https://sabertables.com/static/images/og-image.png"/>
+    <meta property="og:image:width" content="1200"/>
+    <meta property="og:image:height" content="630"/>
+    <meta property="og:image:alt" content="SaberTables.com — MLB sabermetrics tables"/>
+    <meta property="og:site_name" content="MLB Sabermetrics Tables"/>
+    <meta property="og:locale" content="en_US"/>
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:url" content="https://sabertables.com/"/>
+    <meta name="twitter:title" content="MLB Sabermetrics Tables | RE24, Win Expectancy, WPA, Leverage Index"/>
+    <meta name="twitter:description" content="Baseball analytics tools using real game data from {{ min_season }}-{{ max_season }}, sourced from Retrosheet and Statcast. Explore run expectancy, win expectancy, win probability added, leverage index, break-even points, park factors, and RE impact analysis."/>
+    <meta name="twitter:image" content="https://sabertables.com/static/images/og-image.png"/>
+    
+    
+    <!-- Preconnect to external resources for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+    
+    <!-- Prefetch likely-needed resources -->
+    <link rel="prefetch" href="/static/js/app.js?v={{ asset_version }}" as="script"/>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&family=Noto+Sans:wght@300..900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <link href="/static/css/styles.css?v={{ asset_version }}" rel="stylesheet"/>
+    
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "MLB Sabermetrics Tables",
+        "url": "https://sabertables.com/",
+        "description": "Comprehensive baseball analytics platform featuring run expectancy, win expectancy, win probability added, leverage index, linear weights, break-even points, wOBA coefficients, FIP constants, park factors, Pythagorean exponents, runs per win, and RE impact analysis for sacrifice bunts, intentional walks, and pinch hitting. Analyze MLB data across multiple seasons with interactive tables and heatmaps, using Retrosheet and Statcast data.",
+        "applicationCategory": "Sports Analytics",
+        "operatingSystem": "Web Browser",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "author": {
+            "@type": "Organization",
+            "name": "MLB Sabermetrics Tables",
+            "email": "sabertables@proton.me"
+        },
+        "about": {
+            "@type": "Thing",
+            "name": "Baseball Analytics",
+            "description": "Advanced sabermetrics and statistical analysis for Major League Baseball"
+        },
+        "keywords": "MLB, run expectancy, win expectancy, win probability added, leverage index, break-even points, RE impact, RE24, RE288, baseball analytics, sabermetrics, wOBA, FIP, park factors, Pythagorean theorem, linear weights, runs per win, RPW, swing take, stolen base break-even, sacrifice bunt, intentional walk, IBB, pinch hitting",
+        "featureList": [
+            "RE24 Run Values - Expected runs from each base-out state",
+            "RE24 Transitions - Run value changes by event outcome",
+            "RE24 Frequencies - Distribution of base-out states",
+            "RE24 Scoring Distribution - Probability of scoring specific run amounts",
+            "RE288 Run Values - Expected runs by ball-strike count",
+            "RE288 Transitions - Count-based expectancy changes",
+            "RE288 Frequencies - Distribution of ball-strike counts",
+            "Linear Weights - Average run value by event type",
+            "Win Expectancy - Home-team win probability by inning, outs, base state, and run differential",
+            "Win Probability Added - Average event-level change in win probability by game state",
+            "Leverage Index - Situation importance by inning, outs, base state, and run differential",
+            "Reliability markers - Sample-size cues for win expectancy, win probability added, leverage index, and break-even tables",
+            "Break-Even Points - Stolen base, extra-base attempt, tag-up, bunt-for-hit, swing/take, and zone-map break-even tables",
+            "wOBA Coefficients - Weighted on-base average calculations",
+            "FIP Components - Fielding Independent Pitching constants",
+            "Park Factors - Ballpark effects on scoring",
+            "Pythagorean Exponents - Win percentage estimations (fitted and Pythagenpat)",
+            "Runs Per Win - Pythagorean-derived and FanGraphs RPW values by season",
+            "RE Impact: Sacrifice Bunt - Run expectancy impact of sacrifice bunt attempts",
+            "RE Impact: Intentional Walk - Run expectancy cost of intentionally walking a batter",
+            "RE Impact: Pinch Hitting (Position Player) - Run value of pinch hitting for a position player in late innings",
+            "RE Impact: Pinch Hitting (Pitcher) - Run value of pinch hitting for the pitcher in late innings",
+            "RE Impact: Pitcher-Batter Matchup - Run value by handedness matchup state",
+            "RE Impact: Times Through Order - Run impact by repeated pitcher-batter meetings",
+            "Historical data from {{ min_season }}-{{ max_season }}",
+            "Interactive heatmaps with customizable visualization",
+            "Reliability-aware tooltips and table footers",
+            "CSV and JSON export capabilities",
+            "Multi-season aggregation and filtering"
+        ],
+        "screenshot": "https://sabertables.com/static/images/og-image.png"
+    }
+    </script>
+    
+    <!-- Datos estructurados de tipo Dataset.
+         El bloque de arriba declara un WebApplication, que describe la
+         herramienta pero no lo que de verdad se publica aqui. Google indexa los
+         conjuntos de datos por separado (Dataset Search) y para eso hace falta
+         este tipo: es el que puede traer al publico que busca "MLB run
+         expectancy matrix" en vez del que busca una web.
+         temporalCoverage sale de los datos servidos, NO escrito a mano. Lo
+         decide el pipeline con las tres fechas de utils/seasons.py, y aqui llega
+         derivado del parquet de re24. Estuvo puesto a mano y decia otra cosa que
+         los datos. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Dataset",
+      "name": "MLB Sabermetrics Tables",
+      "description": "Run expectancy (RE24, RE288), win expectancy, win probability added, leverage index, linear weights, wOBA coefficients, FIP constants, park factors, Pythagorean exponents, runs per win and break-even points for stolen bases, tag-ups, bunts and swing/take decisions, computed from Major League Baseball play-by-play and pitch-level data.",
+      "url": "https://sabertables.com/",
+      "license": "https://creativecommons.org/licenses/by/4.0/",
+      "isAccessibleForFree": true,
+      "temporalCoverage": "{{ min_season }}/{{ max_season }}",
+      "spatialCoverage": "United States",
+      "creator": {
+        "@type": "Organization",
+        "name": "SaberTables",
+        "url": "https://sabertables.com/",
+        "email": "sabertables@proton.me"
+      },
+      "isBasedOn": [
+        {
+          "@type": "Dataset",
+          "name": "Retrosheet play-by-play event files",
+          "url": "https://www.retrosheet.org/"
+        },
+        {
+          "@type": "Dataset",
+          "name": "Statcast pitch-level data",
+          "url": "https://baseballsavant.mlb.com/"
+        }
+      ],
+      "keywords": [
+        "run expectancy",
+        "win expectancy",
+        "win probability added",
+        "leverage index",
+        "break-even point",
+        "linear weights",
+        "wOBA",
+        "park factors",
+        "sabermetrics",
+        "Major League Baseball"
+      ],
+      "variableMeasured": [
+        "Run expectancy by base-out state",
+        "Win expectancy by inning, outs, base state and run differential",
+        "Break-even success rate by scenario"
+      ]
+    }
+    </script>
+
+    <!-- Inject RE24 event types data for JavaScript -->
+    <script nonce="{{ csp_nonce }}">
+        // @ts-ignore - Jinja2 template syntax
+        window.RE24_EVENT_TYPES = {{ re24_event_types | tojson | safe }};
+        // @ts-ignore - Jinja2 template syntax
+        window.INNINGS = {{ innings | tojson | safe }};
+        // @ts-ignore - Jinja2 template syntax
+        window.SWING_TAKE_SEASONS = {{ swing_take_seasons | tojson | safe }};
+        // Suelo de la matriz RE288. Lo decide el pipeline
+        // (MIN_PER_PITCH_SEASON en utils/seasons.py) y la app lo DERIVA del
+        // parquet; aqui solo viaja. Estaba escrito a mano en app.js, o sea una
+        // tercera copia del mismo numero.
+        window.RE288_MIN_SEASON = {{ re288_min_season | tojson | safe }};
+        // Suelo y techo generales, tambien derivados del dato.
+        window.MIN_SEASON = {{ min_season | tojson | safe }};
+        window.MAX_SEASON = {{ max_season | tojson | safe }};
+    </script>
+</head>
+<body>
+    <!-- Skip Navigation Link for Keyboard Users -->
+    <a href="#main-content" class="skip-nav">Skip to main content</a>
+    {% set event_types = re24_event_types | default([]) %}
+    
+    <!-- Jinja2 Macro for Table Container -->
+    {% macro table_container(table_id, table_type, title_id, table_head_id, table_body_id, format_select_id, download_btn_id) %}
+    <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="{{ table_id }}">
+        <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+            <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                <span id="{{ title_id }}">Matrix Preview</span>
+            </h3>
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-white fw-medium">Heatmap</span>
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="{{ table_type }}-heatmap-toggle" style="cursor: pointer;" checked>
+                </div>
+            </div>
+        </div>
+        <p id="{{ title_id }}-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">&nbsp;</p>
+
+        <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+            <div class="overflow-auto custom-scrollbar">
+                <table class="table table-dark mb-0" id="{{ table_type }}-data-table">
+                    <thead id="{{ table_head_id }}">
+                        <!-- Table headers will be dynamically generated -->
+                    </thead>
+                    <tbody class="small" id="{{ table_body_id }}">
+                        <!-- Table data will be dynamically generated -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                <div class="row align-items-center g-3">
+                    <div class="col-12 col-md-4">
+                        <div id="{{ table_type }}-event-count" class="text-white small opacity-75"></div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div id="{{ table_type }}-pagination" class="d-flex justify-content-center align-items-center gap-2">
+                            <!-- Pagination controls will be generated by JavaScript -->
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                            <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="{{ format_select_id }}">File Format:</label>
+                            <div class="select-wrapper select-wrapper-130">
+                                <select class="form-select form-select-sm form-select-custom btn-height-40" id="{{ format_select_id }}" name="format">
+                                    <option value="csv">CSV</option>
+                                    <option value="json">JSON</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                            </div>
+                            <button id="{{ download_btn_id }}" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40">
+                                <span class="material-symbols-outlined">download</span>
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endmacro %}
+
+    <!-- Error toast notification -->
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 11;">
+        <div id="errorToast" class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <span class="material-symbols-outlined me-2" style="vertical-align: middle;">error</span>
+                    <span id="errorMessage"></span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+        
+        <!-- Success toast notification -->
+        <div id="successToast" class="toast align-items-center text-white bg-success border-0 mt-2" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <span class="material-symbols-outlined me-2" style="vertical-align: middle;">check_circle</span>
+                    <span id="successMessage"></span>
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <main id="main-content" class="d-flex flex-column align-items-center w-100" role="main">
+        <div class="container-xl px-3 px-md-4 py-3 py-md-4">
+            <div class="row align-items-center">
+                <div class="col-12">
+                    <h1 class="text-white display-5 display-md-3 fw-black mb-3 mb-md-4">
+                        <span class="d-none d-sm-inline">MLB Sabermetrics Tables</span>
+                        <span class="d-inline d-sm-none">MLB Sabermetrics Tables</span>
+                    </h1>
+                    <h2 class="text-secondary-custom fs-6 fs-md-5 fw-normal lh-lg">
+                        Using real game data spanning from {{ min_season }} to {{ max_season }}, sourced from Retrosheet & Statcast. These tools help you analyze game situations, understand strategic decisions, and explore how baseball has changed throughout history.
+                    </h2>
+                    <p class="text-secondary-custom fs-6 mt-3 mb-0">
+                        <small>If you find this resource helpful, consider <a href="#" style="color: #137fec;" class="text-decoration-none" data-bs-toggle="modal" data-bs-target="#tipModal">leaving a tip</a> to support continued development, data updates, and hosting costs.</small>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="container-xl px-3 px-md-4">
+            <!-- Loading Container -->
+            <div id="loading-container" class="bg-surface-dark border-top border-bottom border-dark py-3 rounded-3">
+                <div class="px-2 px-md-3">
+                    <div class="mb-3 mb-md-4">
+                        <h2 class="text-white h4 h3-md fw-bold mb-2">Loading Data...</h2>
+                        <p class="text-secondary-custom small">Preparing run expectancy tables</p>
+                    </div>
+                    <div class="d-flex justify-content-center align-items-center py-5">
+                        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Select Parameters Container -->
+            <div id="parameters-container" class="bg-surface-dark border-top border-bottom border-dark py-3 rounded-3" style="display: none;">
+                <div class="px-2 px-md-3">
+                    <div class="mb-3 mb-md-4">
+                        <h2 class="text-white h4 h3-md fw-bold mb-2">⚙ Select Parameters</h2>
+                        <p id="parameters-description" class="text-secondary-custom small">Table type, season range, and event type</p>
+                    </div>
+                    <div class="row g-2 g-md-3 align-items-end">
+                        <div class="col-12 col-md-4 col-lg-3">
+                            <label class="form-label text-white small" for="matrix_type">Table Type</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="matrix_type" id="matrix_type" aria-label="Select run expectancy table type">
+                                    <option value="RE24" selected>RE24 Values</option>
+                                    <option value="RE24_TRANSITIONS">RE24 Transitions</option>
+                                    <option value="R24_FREQUENCIES">RE24 Frequencies</option>
+                                    <option value="RE24_PCT">RE24 Scoring Distribution</option>
+                                    <option value="RE288">RE288 Values</option>
+                                    <option value="RE288_TRANS">RE288 Transitions</option>
+                                    <option value="RE288_FREQ">RE288 Frequencies</option>
+                                    <option value="LINEAR_WEIGHTS">Linear Weights</option>
+                                    <option value="WIN_EXPECTANCY">Win Expectancy</option>
+                                    <option value="WIN_PROBABILITY_ADDED">Win Probability Added</option>
+                                    <option value="LEVERAGE_INDEX">Leverage Index</option>
+                                    <option value="WOBA_COEFFS">wOBA Coefficients</option>
+                                    <option value="FIP_CONST">FIP Components</option>
+                                    <option value="PARK_FACTORS">Park Factors</option>
+                                    <option value="PYTHAG_EXPONENTS">Pythagorean Exponents</option>
+                                    <option value="RUNS_PER_WIN">Runs Per Win</option>
+                                    <option value="BREAKEVEN_POINTS">Break-Even Points</option>
+                                    <option value="RE_IMPACT">RE Impact Analysis</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-3 d-none" id="re-impact-type-container">
+                            <label class="form-label text-white small" for="re_impact_type">Analysis</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="re_impact_type" id="re_impact_type" aria-label="Select RE impact analysis type">
+                                    <option value="sac_bunt" selected>Sacrifice Bunt</option>
+                                    <option value="ibb">Intentional Walk</option>
+                                    <option value="ph_position">PH for Position Player</option>
+                                    <option value="ph_pitcher">PH for Pitchers</option>
+                                    <option value="platoon_baseline">Pitcher-Batter Matchup</option>
+                                    <option value="tto">Pitcher-Batter Times Faced</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-2 d-none" id="breakeven-type-container">
+                            <label class="form-label text-white small" for="breakeven_type">Analysis</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="breakeven_type" id="breakeven_type" aria-label="Select break-even analysis type">
+                                    <option value="stealing" selected>Stolen Bases</option>
+                                    <option value="running">Base Running</option>
+                                    <option value="tagging">Tag-Up</option>
+                                    <option value="bunt-for-hit">Bunt for Hit</option>
+                                    <option value="swing-take">Swing / Take - w/Runners</option>
+                                    <option value="swing-take-zone">Swing / Take - Zone Map</option>
+                                    <option value="sb_by_count">SB by Count</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-3 col-md-3 col-lg-2" id="from-season-container">
+                            <label class="form-label text-white small" for="from_season">From Season</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="from_season" id="from_season" aria-label="Select start season for data range">
+                                    {% for season in all_seasons|reverse %}
+                                    <option value="{{ season }}" {% if season == max_season %}selected{% endif %}>{{ season }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-3 col-md-3 col-lg-2" id="to-season-container">
+                            <label class="form-label text-white small" for="to_season">To Season</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="to_season" id="to_season" aria-label="Select ending season for data range">
+                                    {% for season in all_seasons|reverse %}
+                                    <option value="{{ season }}" {% if season == max_season %}selected{% endif %}>{{ season }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-3" id="event-type-container">
+                            <label class="form-label text-white small" for="event_cd">Event Type</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="event_cd" id="event_cd" aria-label="Select event type for RE24 values">
+                                    {% for evt in event_types %}
+                                    <option value="{{ evt['event_cd'] }}">{{ evt['event'] }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-2 d-none" id="inning-container">
+                            <label class="form-label text-white small" for="inning">Inning</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="inning" id="inning" aria-label="Select inning for RE24 probabilities">
+                                    {% for inn in innings %}
+                                    <option value="{{ inn['inn_id'] }}">{{ inn['inn_name'] }}</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-3 d-none" id="transition-mode-container">
+                            <label class="form-label text-white small" for="transition_mode">Type</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="transition_mode" id="transition_mode" aria-label="Select type for RE288 transitions">
+                                    <option value="1" selected>ΔRun Expectancy</option>
+                                    <option value="2">Probability</option>
+                                    <option value="3">Expected ΔRun Expectancy</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-2 d-none" id="transition-type-container">
+                            <label class="form-label text-white small" for="transition_type">Transition</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="transition_type" id="transition_type" aria-label="Select transition type for RE288 transitions">
+                                    <option value="B" selected>To Ball</option>
+                                    <option value="S">To Strike</option>
+                                    <option value="F">To Foul</option>
+                                    <option value="X">To Ball In Play</option>
+                                    <option value="H">To Hit By Pitch</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-2 d-none" id="team-container">
+                            <label class="form-label text-white small" for="team">Team</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="team" id="team" aria-label="Select team for win expectancy">
+                                    <option value="0" selected>Away</option>
+                                    <option value="1">Home</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>                        <div class="col-12 col-md-4 col-lg-3 d-none" id="re24-transitions-value-type-container">
+                            <label class="form-label text-white small" for="re24_transitions_value_type">Type</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="re24_transitions_value_type" id="re24_transitions_value_type" aria-label="Select value type for RE24 transitions">
+                                    <option value="1" selected>Run Value</option>
+                                    <option value="2">Probability</option>
+                                    <option value="3">Expected Run Value</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>                        <div class="col-12 col-md-4 col-lg-2 d-none" id="average-container">
+                            <label class="form-label text-white small" for="average">Average</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="average" id="average" aria-label="Select averaging period for park factors">
+                                    <option value="1" selected>1 Season</option>
+                                    <option value="3">3 Seasons</option>
+                                    <option value="5">5 Seasons</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-3 d-none" id="breakeven-scenario-container">
+                            <label class="form-label text-white small" for="breakeven_scenario">Scenario</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="breakeven_scenario" id="breakeven_scenario" aria-label="Select steal scenario for by-count view">
+                                    <option value="Runner on 1B steals 2B" selected>Runner on 1B steals 2B</option>
+                                    <option value="Runner on 2B steals 3B">Runner on 2B steals 3B</option>
+                                    <option value="Runners on 1B & 3B, runner on 1B steals 2B">1B steals 2B (runner on 3B)</option>
+                                    <option value="Double steal">Double steal</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-2 d-none" id="outs-container">
+                            <label class="form-label text-white small" for="outs">Outs</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="outs" id="outs" aria-label="Select outs filter for linear weights">
+                                    <option value="-1" selected>All Outs</option>
+                                    <option value="0">0 Outs</option>
+                                    <option value="1">1 Out</option>
+                                    <option value="2">2 Outs</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-2 d-none" id="re24-transitions-outs-container">
+                            <label class="form-label text-white small" for="re24_transitions_outs">Outs</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="re24_transitions_outs" id="re24_transitions_outs" aria-label="Select outs filter for RE24 transitions">
+                                    <option value="0" selected>0 Outs</option>
+                                    <option value="1">1 Out</option>
+                                    <option value="2">2 Outs</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-12 col-lg-2">
+                            <button class="btn btn-primary-custom w-100 d-flex align-items-center justify-content-center gap-2 btn-height-48" aria-label="Generate run expectancy table with selected parameters">
+                                <span class="material-symbols-outlined">refresh</span>
+                                <span class="d-none d-sm-inline">Generate Table</span>
+                                <span class="d-inline d-sm-none">Generate</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="season-range-guidance" class="parameter-note d-none" aria-live="polite">
+                        <span class="material-symbols-outlined parameter-note-icon" aria-hidden="true">info</span>
+                        <span>Use as many seasons as possible. With only a few seasons, some situations occur too infrequently, which lowers reliability.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table containers using macro -->
+        {{ table_container(
+            're24-table-container',
+            're24',
+            'table-title',
+            'table-head',
+            'table-body',
+            'format-select',
+            'download-re24-btn'
+        ) }}
+
+        {{ table_container(
+            're24-probabilities-table-container',
+            're24-probabilities',
+            'probabilities-table-title',
+            'probabilities-table-head',
+            'probabilities-table-body',
+            'probabilities-format-select',
+            'download-probabilities-btn'
+        ) }}
+
+        {{ table_container(
+            're288-table-container',
+            're288',
+            're288-table-title',
+            're288-table-head',
+            're288-table-body',
+            're288-format-select',
+            'download-re288-btn'
+        ) }}
+
+        <!-- wOBA Coefficients Table (without heatmap toggle) -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="woba-table-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="woba-table-title">Matrix Preview</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="woba-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="woba-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">&nbsp;</p>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="woba-data-table">
+                        <thead id="woba-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="woba-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="woba-event-count" class="text-white small opacity-75"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div id="woba-pagination" class="d-flex justify-content-center align-items-center gap-2">
+                                <!-- Pagination controls will be generated by JavaScript -->
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="woba-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="woba-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="download-woba-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40">
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FIP Constants Table (without heatmap toggle) -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="fip-table-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="fip-table-title">Matrix Preview</span>
+                </h3>
+            </div>
+            <p id="fip-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">&nbsp;</p>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="fip-data-table">
+                        <thead id="fip-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="fip-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="fip-event-count" class="text-white small opacity-75"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div id="fip-pagination" class="d-flex justify-content-center align-items-center gap-2">
+                                <!-- Pagination controls will be generated by JavaScript -->
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="fip-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="fip-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="download-fip-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40">
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pythagorean Exponents Table -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="pythag-exponents-table-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="pythag-exponents-table-title">Matrix Preview</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="pythag-exponents-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="pythag-exponents-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">&nbsp;</p>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="pythag-exponents-data-table">
+                        <thead id="pythag-exponents-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="pythag-exponents-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="pythag-exponents-event-count" class="text-white small opacity-75"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div id="pythag-exponents-pagination" class="d-flex justify-content-center align-items-center gap-2">
+                                <!-- Pagination controls will be generated by JavaScript -->
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="pythag-exponents-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="pythag-exponents-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="download-pythag-exponents-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40">
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Runs Per Win Table -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="runs-per-win-table-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="runs-per-win-table-title">Matrix Preview</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="runs-per-win-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="runs-per-win-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">&nbsp;</p>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="runs-per-win-data-table">
+                        <thead id="runs-per-win-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="runs-per-win-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="runs-per-win-event-count" class="text-white small opacity-75"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div id="runs-per-win-pagination" class="d-flex justify-content-center align-items-center gap-2">
+                                <!-- Pagination controls will be generated by JavaScript -->
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="runs-per-win-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="runs-per-win-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="download-runs-per-win-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40">
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SB Break-Even Points Table -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="sb-breakeven-table-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="sb-breakeven-table-title">Matrix Preview</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="sb-breakeven-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="sb-breakeven-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">&nbsp;</p>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="sb-breakeven-data-table">
+                        <thead id="sb-breakeven-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="sb-breakeven-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="sb-breakeven-event-count" class="text-white small opacity-75"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div id="sb-breakeven-pagination" class="d-flex justify-content-center align-items-center gap-2">
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="sb-breakeven-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="sb-breakeven-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="download-sb-breakeven-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40">
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sacrifice Bunt RE Table -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="sac-bunt-re-table-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="sac-bunt-re-table-title">Matrix Preview</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="sac-bunt-re-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="sac-bunt-re-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">&nbsp;</p>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="sac-bunt-re-data-table">
+                        <thead id="sac-bunt-re-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="sac-bunt-re-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="sac-bunt-re-event-count" class="text-white small opacity-75"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <!-- No pagination needed - small fixed table -->
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="sac-bunt-re-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="sac-bunt-re-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="download-sac-bunt-re-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40">
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RE Impact Analysis Table -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="re-impact-table-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="re-impact-table-title">Matrix Preview</span>
+                </h3>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-white fw-medium">Percentages</span>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="re-impact-percent-toggle" style="cursor: pointer;">
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-white fw-medium">Heatmap</span>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="re-impact-heatmap-toggle" style="cursor: pointer;" checked>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p id="re-impact-table-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">&nbsp;</p>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0">
+                        <thead id="re-impact-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="re-impact-table-body">
+                            <!-- Table rows will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 border-top border-dark bg-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="re-impact-event-count" class="text-white small opacity-75"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div id="re-impact-pagination" class="d-flex flex-wrap justify-content-center gap-2"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="re-impact-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="re-impact-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="download-re-impact-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40">
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Park Factors Table (without heatmap toggle) -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="park-factors-table-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="park-factors-table-title">Matrix Preview</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="park-factors-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="park-factors-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">&nbsp;</p>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="park-factors-data-table">
+                        <thead id="park-factors-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="park-factors-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="park-factors-event-count" class="text-white small opacity-75"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div id="park-factors-pagination" class="d-flex justify-content-center align-items-center gap-2">
+                                <!-- Pagination controls will be generated by JavaScript -->
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="park-factors-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="park-factors-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="download-park-factors-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40">
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Linear Weights Table Container -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="linear-weights-table-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="linear-weights-table-title">Linear Weights</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="linear-weights-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="linear-weights-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">The average change in run expectancy caused by an event, measured relative to the game state before the play.</p>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="linear-weights-data-table">
+                        <thead id="linear-weights-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="linear-weights-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="linear-weights-event-count" class="small text-white opacity-75 text-center text-md-start"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div id="linear-weights-pagination" class="d-flex justify-content-center align-items-center gap-2">
+                                <!-- Pagination controls will be generated by JavaScript -->
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="linear-weights-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="linear-weights-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="linear-weights-download-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40" disabled>
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- R24 Frequencies Table Container -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="r24-frequencies-table-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="r24-frequencies-table-title">R24 Frequencies</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="r24-frequencies-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="r24-frequencies-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">Frequency distribution showing how often each base–out state occurs in the dataset.</p>
+
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="r24-frequencies-data-table">
+                        <thead id="r24-frequencies-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="r24-frequencies-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="r24-frequencies-event-count" class="text-white small opacity-75"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="r24-frequencies-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="r24-frequencies-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="r24-frequencies-download-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40" disabled>
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Win Expectancy Table Container -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="win-expectancy-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="win-expectancy-table-title">Win Expectancy</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="win-expectancy-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="win-expectancy-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">Win probability by game situation, inning, base-out state, and run differential.</p>
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="win-expectancy-data-table">
+                        <thead id="win-expectancy-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="win-expectancy-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="win-expectancy-event-count" class="small text-white opacity-75 text-center text-md-start"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div id="win-expectancy-pagination" class="d-flex justify-content-center align-items-center gap-2">
+                                <!-- Pagination controls will be generated by JavaScript -->
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="win-expectancy-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="win-expectancy-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="win-expectancy-download-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40" disabled>
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Win Probability Added Table Container -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="win-probability-added-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="win-probability-added-table-title">Win Probability Added</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="win-probability-added-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="win-probability-added-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">Average change in win probability by game situation, inning, base-out state, and run differential.</p>
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="win-probability-added-data-table">
+                        <thead id="win-probability-added-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="win-probability-added-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="win-probability-added-event-count" class="small text-white opacity-75 text-center text-md-start"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div id="win-probability-added-pagination" class="d-flex justify-content-center align-items-center gap-2">
+                                <!-- Pagination controls will be generated by JavaScript -->
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="win-probability-added-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="win-probability-added-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="win-probability-added-download-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40" disabled>
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leverage Index Table Container -->
+        <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="leverage-index-container">
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="leverage-index-table-title">Leverage Index</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="leverage-index-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="leverage-index-table-title-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">A measure of the importance of each game situation based on how much win expectancy can swing.</p>
+            <div class="table-responsive rounded-3 border border-dark shadow-lg overflow-hidden table-dark-custom">
+                <div class="overflow-auto custom-scrollbar">
+                    <table class="table table-dark mb-0" id="leverage-index-data-table">
+                        <thead id="leverage-index-table-head">
+                            <!-- Table headers will be dynamically generated -->
+                        </thead>
+                        <tbody class="small" id="leverage-index-table-body">
+                            <!-- Table data will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                    <div class="row align-items-center g-3">
+                        <div class="col-12 col-md-4">
+                            <div id="leverage-index-event-count" class="small text-white opacity-75 text-center text-md-start"></div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div id="leverage-index-pagination" class="d-flex justify-content-center align-items-center gap-2">
+                                <!-- Pagination controls will be generated by JavaScript -->
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                                <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="leverage-index-format-select">File Format:</label>
+                                <div class="select-wrapper select-wrapper-130">
+                                    <select class="form-select form-select-sm form-select-custom btn-height-40" id="leverage-index-format-select" name="format">
+                                        <option value="csv">CSV</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                    <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                                </div>
+                                <button id="leverage-index-download-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40" disabled>
+                                    <span class="material-symbols-outlined">download</span>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer - flows after visible content -->
+        <div class="container-xl px-3 px-md-4 mt-2">
+            <footer class="footer-custom py-3 py-md-4 rounded-3">
+                <div class="px-2 px-md-4">
+                    <div class="row align-items-center g-2 g-md-3">
+                        <div class="col-12">
+                            <div class="d-flex flex-column flex-md-row justify-content-center justify-content-md-between align-items-center gap-2 gap-md-3">
+                                <div class="d-flex flex-column align-items-center align-items-md-start gap-1">
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="small text-secondary-custom opacity-80">Contact Us:</span>
+                                        <span id="contact-email" data-u="sabertables" data-d="proton.me" class="small fw-medium text-secondary-custom"></span>
+                                    </div>
+                                    {% if last_updated_utc %}
+                                    <span class="text-muted font-size-075 opacity-60">
+                                        Data last updated: <span id="last-updated-display">{{ last_updated_utc }}</span>
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                <div class="d-flex flex-column align-items-center align-items-md-end gap-1">
+                                    <p class="small text-secondary-custom mb-0 text-center text-md-end max-w-500 opacity-60 font-size-07">
+                                        The information used here was obtained free of charge from and is copyrighted by Retrosheet. Interested parties may contact Retrosheet at "www.retrosheet.org".
+                                    </p>
+                                    <p class="small text-secondary-custom mb-0 text-center text-md-end max-w-500 opacity-60 font-size-07">
+                                        Except where otherwise noted, content on this site is licensed under a<br>
+                                        <a rel="license" href="https://creativecommons.org/licenses/by-sa/4.0/" class="text-muted" target="_blank">
+                                            Creative Commons Attribution-ShareAlike 4.0 International License
+                                        </a>.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </main>
+
+    <!-- Tip Modal -->
+    <div class="modal fade" id="tipModal" tabindex="-1" aria-labelledby="tipModalLabel">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-surface-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white" id="tipModalLabel">Support This Project</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-secondary-custom mb-3">
+                        If you find these sabermetrics tables useful for your baseball analysis, research, or enjoyment, please consider supporting this project.
+                    </p>
+                    <p class="text-secondary-custom mb-3">
+                        Your contribution helps cover server costs, database maintenance, and ongoing data updates from Retrosheet.
+                    </p>
+                    <div class="text-center">
+                        <a href="https://buymeacoffee.com/albertop" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-blue.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+                    </div>
+                    <p class="text-muted small text-center mt-3 mb-0">
+                        Thank you for your support! It's greatly appreciated.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/app.js?v={{ asset_version }}"></script>
+    
+    {% if last_updated_utc %}
+    <script nonce="{{ csp_nonce }}">
+        // Convert UTC timestamp to user's local timezone
+        (function() {
+            const utcDate = new Date('{{ last_updated_utc }}');
+            const options = {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZoneName: 'short'
+            };
+            const localDate = utcDate.toLocaleString(undefined, options);
+            document.getElementById('last-updated-display').textContent = localDate;
+        })();
+    </script>
+    {% endif %}
+</body>
+</html>

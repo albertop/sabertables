@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Run Expectancy Tables Home</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&amp;family=Noto+Sans:wght@300..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="styles.css" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                        "surface-dark": "#192633",
+                        "border-dark": "#233648",
+                        "text-secondary": "#92adc9",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"],
+                        "body": ["Noto Sans", "sans-serif"],
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white min-h-screen flex flex-col overflow-x-hidden">
+<main class="flex-grow flex flex-col items-center w-full">
+<div class="w-full max-w-[1200px] px-4 md:px-10 py-10 md:py-16">
+<div class="@container">
+<div class="flex flex-col gap-8 md:gap-12 md:flex-row items-center">
+<div class="flex flex-col gap-6 w-full justify-center">
+<div class="flex flex-col gap-4 text-left">
+<h1 class="text-white text-4xl md:text-5xl lg:text-6xl font-black leading-tight tracking-[-0.033em] font-display whitespace-nowrap">
+                                Run Expectancy Tables
+                            </h1>
+<h2 class="text-text-secondary text-base md:text-lg font-normal leading-relaxed">
+                                Explore comprehensive historical RE24 and RE288 matrices to uncover run value probabilities. Gain deeper insights into game situations by analyzing expected runs across various base-out states and ball-strike counts. <br/><br/>
+<span class="block text-sm text-text-secondary/80">
+<strong>RE24:</strong> Expected runs from base-out state until inning end.<br/>
+<strong>RE288:</strong> Adds ball-strike counts for more granular context.
+                                </span>
+</h2>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="w-full bg-surface-dark/50 border-y border-border-dark py-12">
+<div class="max-w-[1200px] mx-auto px-4 md:px-10 flex flex-col gap-8">
+<div class="flex flex-col gap-2">
+<h2 class="text-white text-2xl font-bold leading-tight tracking-[-0.015em]">Data Configuration</h2>
+<p class="text-text-secondary text-sm">Select parameters to generate the run expectancy matrix.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 items-end">
+<div class="lg:col-span-3 flex flex-col gap-3">
+<label class="text-white text-sm font-medium">From Season</label>
+<div class="relative">
+<select class="w-full appearance-none rounded-lg border border-border-dark bg-surface-dark text-white h-12 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer font-display">
+<option value="2023">2023</option>
+<option value="2022">2022</option>
+<option value="2021">2021</option>
+<option value="2020">2020</option>
+</select>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+</div>
+<div class="lg:col-span-3 flex flex-col gap-3">
+<label class="text-white text-sm font-medium">To Season</label>
+<div class="relative">
+<select class="w-full appearance-none rounded-lg border border-border-dark bg-surface-dark text-white h-12 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer font-display">
+<option value="2023">2023</option>
+<option value="2022">2022</option>
+<option value="2021">2021</option>
+<option value="2020">2020</option>
+</select>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+</div>
+<div class="lg:col-span-3 flex flex-col gap-3">
+<label class="text-white text-sm font-medium">Matrix Type</label>
+<div class="relative">
+<select class="w-full appearance-none rounded-lg border border-border-dark bg-surface-dark text-white h-12 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer font-display">
+<option value="RE24">RE24</option>
+<option value="RE288">RE288</option>
+</select>
+<div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+</div>
+<div class="lg:col-span-3 flex items-center h-12">
+<button class="w-full h-12 flex items-center justify-center gap-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-bold transition-all shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-lg">refresh</span>
+                            Generate
+                        </button>
+</div>
+</div>
+</div>
+</div>
+<div class="w-full max-w-[1200px] px-4 md:px-10 py-12 flex flex-col gap-8">
+<div class="flex items-center justify-between">
+<h3 class="text-white text-xl font-bold flex items-center gap-3">
+<span class="material-symbols-outlined text-text-secondary">table_view</span>
+                    Matrix Preview
+                </h3>
+<div class="hidden gap-2">
+</div>
+</div>
+<div class="w-full overflow-hidden rounded-xl border border-border-dark bg-surface-dark/30 shadow-lg flex flex-col">
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-primary border-b border-border-dark">
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider sticky left-0 bg-primary z-10 text-center">Base State</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center">0 Outs</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center">1 Out</th>
+<th class="p-4 text-sm font-bold text-white uppercase tracking-wider text-center">2 Outs</th>
+</tr>
+</thead>
+<tbody class="text-sm text-white divide-y divide-border-dark/50">
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 font-medium text-text-secondary sticky left-0 bg-background-dark/95 group-hover:bg-background-dark border-r border-border-dark/50" title="Empty Bases">
+<svg class="w-12 h-12 mx-auto overflow-visible" viewBox="0 0 24 24">
+<path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+</svg>
+</td>
+<td class="p-4 text-center font-mono">0.461</td>
+<td class="p-4 text-center font-mono">0.243</td>
+<td class="p-4 text-center font-mono">0.095</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 font-medium text-text-secondary sticky left-0 bg-background-dark/95 group-hover:bg-background-dark border-r border-border-dark/50" title="1st Base">
+<svg class="w-12 h-12 mx-auto overflow-visible" viewBox="0 0 24 24">
+<path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+<rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+</svg>
+</td>
+<td class="p-4 text-center font-mono">0.831</td>
+<td class="p-4 text-center font-mono">0.489</td>
+<td class="p-4 text-center font-mono">0.209</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 font-medium text-text-secondary sticky left-0 bg-background-dark/95 group-hover:bg-background-dark border-r border-border-dark/50" title="2nd Base">
+<svg class="w-12 h-12 mx-auto overflow-visible" viewBox="0 0 24 24">
+<path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+<rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+</svg>
+</td>
+<td class="p-4 text-center font-mono">1.068</td>
+<td class="p-4 text-center font-mono">0.644</td>
+<td class="p-4 text-center font-mono">0.304</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 font-medium text-text-secondary sticky left-0 bg-background-dark/95 group-hover:bg-background-dark border-r border-border-dark/50" title="1st &amp; 2nd">
+<svg class="w-12 h-12 mx-auto overflow-visible" viewBox="0 0 24 24">
+<path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+<rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+<rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+</svg>
+</td>
+<td class="p-4 text-center font-mono">1.373</td>
+<td class="p-4 text-center font-mono">0.864</td>
+<td class="p-4 text-center font-mono">0.412</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 font-medium text-text-secondary sticky left-0 bg-background-dark/95 group-hover:bg-background-dark border-r border-border-dark/50" title="3rd Base">
+<svg class="w-12 h-12 mx-auto overflow-visible" viewBox="0 0 24 24">
+<path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+<rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+<rect class="fill-surface-dark stroke-text-secondary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+</svg>
+</td>
+<td class="p-4 text-center font-mono">1.334</td>
+<td class="p-4 text-center font-mono">0.908</td>
+<td class="p-4 text-center font-mono">0.342</td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors group">
+<td class="p-4 font-medium text-text-secondary sticky left-0 bg-background-dark/95 group-hover:bg-background-dark border-r border-border-dark/50" title="Bases Loaded">
+<svg class="w-12 h-12 mx-auto overflow-visible" viewBox="0 0 24 24">
+<path d="M12 18L6 12L12 6L18 12Z" fill="none" stroke="#233648" stroke-width="1.5"></path>
+<rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 6 12)" width="4" x="4" y="10"></rect>
+<rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 12 6)" width="4" x="10" y="4"></rect>
+<rect class="fill-primary stroke-primary" height="4" stroke-width="1.5" transform="rotate(45 18 12)" width="4" x="16" y="10"></rect>
+</svg>
+</td>
+<td class="p-4 text-center font-mono">2.282</td>
+<td class="p-4 text-center font-mono">1.520</td>
+<td class="p-4 text-center font-mono">0.728</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-6 border-t border-border-dark bg-surface-dark flex flex-col md:flex-row items-center justify-between gap-4">
+<div class="flex flex-col gap-1">
+<span class="text-white font-bold text-sm">Download Full Dataset</span>
+<span class="text-text-secondary text-xs">Available in CSV and JSON formats.</span>
+</div>
+<div class="flex flex-col sm:flex-row gap-3 items-center sm:items-center">
+<div class="flex flex-row items-center gap-2 w-full sm:w-auto">
+<label class="text-white text-xs font-medium whitespace-nowrap">Format:</label>
+<div class="relative w-full sm:w-32">
+<select class="w-full appearance-none rounded-lg border border-border-dark bg-surface-dark/50 text-white h-10 pl-3 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer font-display">
+<option value="CSV">CSV</option>
+<option value="JSON">JSON</option>
+<option value="XML">XML</option>
+</select>
+<div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary">
+<span class="material-symbols-outlined text-lg">expand_more</span>
+</div>
+</div>
+</div>
+<button class="flex items-center justify-center gap-2 px-6 h-10 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-bold transition-all shadow-lg shadow-primary/20 w-full sm:w-auto">
+<span class="material-symbols-outlined text-lg">download</span>
+                        Download
+                    </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<footer class="w-full border-t border-border-dark bg-surface-dark py-8 mt-12">
+<div class="max-w-[1200px] mx-auto px-4 md:px-10 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex flex-wrap justify-center md:justify-start items-center gap-x-6 gap-y-2 text-white w-full">
+<a class="text-sm font-medium text-text-secondary hover:text-white transition-colors" href="mailto:runexpectancy@gmail.com">runexpectancy@gmail.com</a>
+<div class="flex-grow"></div>
+<p class="text-xs text-text-secondary/60 max-w-lg text-right">The information used here was obtained free of charge from and is copyrighted by Retrosheet. Interested parties may contact Retrosheet at "www.retrosheet.org".</p>
+</div>
+</div>
+</footer>
+</body></html>

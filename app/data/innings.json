@@ -1,0 +1,46 @@
+[
+  {
+    "inn_id": -1,
+    "inn_name": "All Innings"
+  },
+  {
+    "inn_id": 1,
+    "inn_name": "1st"
+  },
+  {
+    "inn_id": 2,
+    "inn_name": "2nd"
+  },
+  {
+    "inn_id": 3,
+    "inn_name": "3rd"
+  },
+  {
+    "inn_id": 4,
+    "inn_name": "4th"
+  },
+  {
+    "inn_id": 5,
+    "inn_name": "5th"
+  },
+  {
+    "inn_id": 6,
+    "inn_name": "6th"
+  },
+  {
+    "inn_id": 7,
+    "inn_name": "7th"
+  },
+  {
+    "inn_id": 8,
+    "inn_name": "8th"
+  },
+  {
+    "inn_id": 9,
+    "inn_name": "9th"
+  },
+  {
+    "inn_id": 10,
+    "inn_name": "Extra Innings"
+  }
+]

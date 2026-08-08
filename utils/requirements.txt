@@ -1,0 +1,26 @@
+# Dependencias de los scripts de extraccion en utils/.
+#
+# Estos scripts NO se ejecutan dentro del contenedor: corren en la maquina que
+# tiene acceso a SQL Server y generan los parquets que la app consume. Por eso
+# sus dependencias van aparte de app/requirements.txt.
+#
+#   pip install -r utils/requirements.txt
+#
+# scipy faltaba en todos los requirements del proyecto pese a que
+# calculate_pythag_exponents.py lo importa: el pipeline no era reproducible
+# desde cero.
+
+# Extraccion y transformacion
+pandas>=3.0.5
+pyarrow>=25.0.0
+
+# Ajuste del exponente pitagorico (scipy.optimize.minimize_scalar)
+numpy>=2.5.1
+scipy>=1.18.0
+
+# Acceso a SQL Server
+sqlalchemy>=2.0.51
+pyodbc>=5.3.0
+
+# Configuracion de conexion desde .env
+python-dotenv>=1.2.2

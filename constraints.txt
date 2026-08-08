@@ -1,0 +1,72 @@
+# Versiones EXACTAS validadas el 8 de agosto de 2026 con los 181 tests en verde,
+# el pipeline completo regenerado y la imagen construida y probada.
+#
+# POR QUE EXISTE. app/requirements.txt y utils/requirements.txt usan `>=`, asi que
+# dos construcciones del mismo Dockerfile pueden traer versiones distintas sin que
+# cambie una linea del repositorio. En una app de tablas estadisticas, una
+# regresion silenciosa de pandas o pyarrow no da un error: da otro numero.
+#
+# COMO SE USA:
+#     pip install -r app/requirements.txt -c constraints.txt
+#
+# Los `>=` se mantienen a proposito en los requirements: dicen el MINIMO que el
+# codigo necesita (pandas 3 por los dtypes de cadena declarados, uvicorn 0.52 por
+# el CIDR en trusted_hosts). Este fichero dice lo que se PROBO. Son dos preguntas
+# distintas y conviene no mezclarlas.
+#
+# PARA ACTUALIZAR: levantar el pin, correr los 181 tests, regenerar el pipeline y
+# comparar los parquets. Es lo que se hizo al subir a pandas 3: todos los valores
+# identicos, solo cambio la metadata de pyarrow.
+
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.14.2
+ast_serialize==0.8.0
+certifi==2026.7.22
+click==8.4.2
+colorama==0.4.6
+Deprecated==1.3.1
+fastapi==0.141.1  # directa
+greenlet==3.5.4
+gunicorn==26.0.0  # directa
+h11==0.16.0
+httpcore==1.0.9
+httptools==0.8.0  # directa
+httpx==0.28.1
+idna==3.18
+iniconfig==2.3.0
+Jinja2==3.1.6  # directa
+librt==0.15.0
+limits==5.8.0
+loguru==0.7.3  # directa
+MarkupSafe==3.0.3
+mypy==2.3.0
+mypy_extensions==1.1.0
+numpy==2.5.1  # directa
+orjson==3.11.9  # directa
+packaging==26.3
+pandas==3.0.5  # directa
+pandas-stubs==3.0.5.260730
+pathspec==1.1.1
+pip==26.2.1
+pluggy==1.6.0
+pyarrow==25.0.0  # directa
+pydantic==2.13.4
+pydantic_core==2.46.4
+Pygments==2.20.0
+pyodbc==5.3.0  # directa
+pytest==9.1.1
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.2  # directa
+ruff==0.16.2
+scipy==1.18.0  # directa
+six==1.17.0
+slowapi==0.1.10  # directa
+SQLAlchemy==2.0.51  # directa
+starlette==1.5.0
+typing_extensions==4.16.0
+typing-inspection==0.4.2
+tzdata==2026.3
+uvicorn==0.52.1  # directa
+win32_setctime==1.2.0
+wrapt==2.3.0
