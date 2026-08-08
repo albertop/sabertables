@@ -290,10 +290,12 @@ def build_window_sample_sizes(df_team):
     return pd.DataFrame(rows)
 
 
-def save_pythag_data(df, df_team):
+def save_pythag_data(df, df_team, data_dir=None):
     """Save pythagorean exponent data to parquet in app/data/."""
-    script_dir = Path(__file__).parent
-    data_dir = script_dir.parent / "app" / "data"
+    # data_dir es un parametro con valor por defecto y no una ruta fija dentro,
+    # para poder escribir a un directorio temporal en los tests. En produccion
+    # nadie lo pasa y el comportamiento es el mismo de siempre.
+    data_dir = Path(data_dir) if data_dir is not None else Path(__file__).parent.parent / "app" / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 
     # --- Season-level exponents (one row per season) ---
@@ -350,10 +352,12 @@ def save_pythag_data(df, df_team):
     return df_final
 
 
-def save_rpw_data(df_exponents, df_team, df_ip):
+def save_rpw_data(df_exponents, df_team, df_ip, data_dir=None):
     """Calculate and save Runs Per Win data to parquet in app/data/."""
-    script_dir = Path(__file__).parent
-    data_dir = script_dir.parent / "app" / "data"
+    # data_dir es un parametro con valor por defecto y no una ruta fija dentro,
+    # para poder escribir a un directorio temporal en los tests. En produccion
+    # nadie lo pasa y el comportamiento es el mismo de siempre.
+    data_dir = Path(data_dir) if data_dir is not None else Path(__file__).parent.parent / "app" / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 
     # Per-season totals for rolling RPG calculation

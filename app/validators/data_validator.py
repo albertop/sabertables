@@ -71,59 +71,7 @@ def validate_dataframe_schema(
         raise ValueError(f"{data_name}: Found NaN values in columns: {columns_with_nulls.to_dict()}")
 
 
-def check_for_duplicates(
-    df: pd.DataFrame,
-    key_columns: list[str],
-    data_name: str
-) -> None:
-    """
-    Check for duplicate rows based on key columns.
-
-    Args:
-        df: DataFrame to check
-        key_columns: Columns that should uniquely identify rows
-        data_name: Name of dataset for error messages
-
-    Raises:
-        ValueError: If duplicates are found
-    """
-    duplicates = df[key_columns].duplicated()
-    if duplicates.any():
-        duplicate_count = duplicates.sum()
-        duplicate_examples = df[duplicates][key_columns].head(5)
-        raise ValueError(
-            f"{data_name}: Found {duplicate_count} duplicate rows. Examples:\n{duplicate_examples}"
-        )
-
-    logger.info(f"{data_name}: No duplicates found")
-
-
-def validate_weighted_mean_inputs(
-    df: pd.DataFrame,
-    value_column: str,
-    n_column: str = "n"
-) -> None:
-    """
-    Validate inputs for weighted mean calculation.
-
-    Args:
-        df: DataFrame with data
-        value_column: Column containing values to average
-        n_column: Column containing weights (sample sizes)
-
-    Raises:
-        ValueError: If validation fails
-    """
-    # Check for zero or negative n values
-    if (df[n_column] <= 0).any():
-        zero_n_count = (df[n_column] <= 0).sum()
-        raise ValueError(f"Found {zero_n_count} rows with n <= 0, which would cause division by zero")
-
-    # Check for infinite or NaN values
-    if df[value_column].isin([float('inf'), float('-inf')]).any():
-        raise ValueError(f"Found infinite values in {value_column}")
-
-    if df[value_column].isnull().any():
-        raise ValueError(f"Found NaN values in {value_column}")
-
-    logger.debug(f"Weighted mean validation passed for {value_column}")
+# check_for_duplicates() y validate_weighted_mean_inputs() vivian aqui y no las
+# llamaba nadie: cero usos fuera de este modulo. Mismo caso que
+# validate_season_range. Se borran en vez de escribirles tests que solo servirian
+# para subir un porcentaje.

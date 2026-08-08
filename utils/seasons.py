@@ -82,16 +82,10 @@ def rango(por_lanzamiento: bool = False) -> tuple[int, int]:
     return (MIN_PER_PITCH_SEASON if por_lanzamiento else MIN_SEASON), MAX_SEASON
 
 
-def predicado_sql(columna: str = "season", por_lanzamiento: bool = False) -> str:
-    """
-    Trozo de SQL con el rango ya puesto, para empotrar en las consultas.
-
-    Los valores se interpolan y no se pasan como parametros a proposito: son
-    enteros que salen de `int()`, no hay texto de nadie de por medio, y asi las
-    consultas siguen siendo copiables a un cliente de SQL tal cual estan.
-    """
-    lo, hi = rango(por_lanzamiento)
-    return f"{columna} BETWEEN {int(lo)} AND {int(hi)}"
+# Aqui vivia predicado_sql(), que devolvia el trozo de SQL con el rango puesto.
+# Nunca llego a usarla nadie: las consultas llevan marcadores {SEASON_MIN} que
+# resuelve _resolver_temporadas() en extract_re_data. Se borra en vez de
+# probarla; el historial la tiene si algun dia hace falta.
 
 
 def recortar(

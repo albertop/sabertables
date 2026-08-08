@@ -16,6 +16,7 @@ import extract_re_data as extract
 import numpy as np
 import pandas as pd
 import pytest
+import seasons
 
 # ---------------------------------------------------------------------------
 # Break-even de robo
@@ -1597,3 +1598,254 @@ def test_una_extraccion_parcial_no_exige_la_marca(tmp_path):
     extract._promote_staging(staging, final, ['x.parquet'], completa=False)
 
     assert (final / 'x.parquet').exists()
+
+
+# ---------------------------------------------------------------------------
+# Escritura de los parquets del pitagorico
+# ---------------------------------------------------------------------------
+
+def _liga_procesada(seasons_rango=range(2000, 2013), equipos=20):
+    """Una liga sintetica coherente, ya pasada por process_pythag."""
+    df = _liga(seasons_rango, equipos=equipos)
+    return pythag.process_pythag(df)
+
+
+def _ip(seasons_rango=range(2000, 2013)):
+    return pd.DataFrame({"season": list(seasons_rango),
+                         "Total_IP": [43000.0] * len(list(seasons_rango))})
+
+
+def test_el_parquet_del_pitagorico_tiene_una_fila_por_temporada(tmp_path):
+    """
+    La tabla de la web es una fila por temporada. Si la escritura dejara una por
+    equipo, saldrian treinta filas identicas por anio.
+    """
+    df = _liga_procesada()
+
+    salida = pythag.save_pythag_data(df, df_team=df, data_dir=tmp_path)
+
+    escrito = pd.read_parquet(tmp_path / "pythag_exponents.parquet")
+    assert len(escrito) == escrito["season"].nunique()
+    assert len(escrito) == len(salida)
+
+
+def test_las_columnas_publicadas_son_las_que_espera_la_web(tmp_path):
+    """
+    Los nombres viajan tal cual a las cabeceras de la tabla. Si cambian sin que
+    cambie el frontend, la columna sale vacia.
+    """
+    df = _liga_procesada()
+
+    pythag.save_pythag_data(df, df_team=df, data_dir=tmp_path)
+
+    columnas = set(pd.read_parquet(tmp_path / "pythag_exponents.parquet").columns)
+    assert {"season", "1 year", "3 years", "12 years", "Pythagenpat"} <= columnas
+
+
+def test_cada_ventana_lleva_su_tamano_de_muestra(tmp_path):
+    """
+    El `_n` alimenta el marcador de fiabilidad. Sin el, la columna de un anio se
+    presenta con el mismo peso visual que la de doce, y tiene un intervalo de
+    mas o menos 0.25 sobre valores que van de 1.6 a 2.0.
+    """
+    df = _liga_procesada()
+
+    pythag.save_pythag_data(df, df_team=df, data_dir=tmp_path)
+
+    escrito = pd.read_parquet(tmp_path / "pythag_exponents.parquet")
+    for col in ("1 year", "3 years", "12 years"):
+        assert f"{col}_n" in escrito.columns, f"falta el n de {col}"
+
+
+def test_la_temporada_se_escribe_como_entero(tmp_path):
+    """Un float en season sale como 2024.0 en la tabla."""
+    df = _liga_procesada()
+
+    pythag.save_pythag_data(df, df_team=df, data_dir=tmp_path)
+
+    escrito = pd.read_parquet(tmp_path / "pythag_exponents.parquet")
+    assert escrito["season"].dtype == "int32"
+    assert escrito["1 year_n"].dtype == "Int32", "el n admite nulos: ventana incompleta"
+
+
+def test_el_pythagenpat_publicado_es_el_promedio_de_la_liga(tmp_path):
+    """
+    Se calcula por equipo --((RS+RA)/G)^0.287-- y la tabla publica una fila por
+    temporada, asi que hay que promediar. Coger el del primer equipo daria un
+    numero que no representa a nadie.
+    """
+    df = _liga_procesada()
+
+    pythag.save_pythag_data(df, df_team=df, data_dir=tmp_path)
+
+    escrito = pd.read_parquet(tmp_path / "pythag_exponents.parquet").set_index("season")
+    esperado = df[df.season == 2005]["pythag_exponent_pat"].mean()
+    assert escrito.loc[2005, "Pythagenpat"] == pytest.approx(esperado, abs=1e-5)
+
+
+def test_runs_per_win_se_escribe_con_sus_columnas(tmp_path):
+    df = _liga_procesada()
+    exponentes = pythag.save_pythag_data(df, df_team=df, data_dir=tmp_path)
+
+    pythag.save_rpw_data(exponentes, df, _ip(), data_dir=tmp_path)
+
+    escrito = pd.read_parquet(tmp_path / "runs_per_win.parquet")
+    columnas = set(escrito.columns)
+    assert {"season", "1 year", "Pythagenpat", "FanGraphs"} <= columnas
+    assert escrito["season"].dtype == "int32"
+
+
+def test_las_carreras_por_victoria_caen_en_el_rango_conocido(tmp_path):
+    """
+    Historicamente van de 8 a 11 carreras por victoria. Un valor fuera de ahi
+    indica que el ritmo de anotacion o el exponente entraron mal, y es un numero
+    que nadie mira dos veces si sale plausible.
+    """
+    df = _liga_procesada()
+    exponentes = pythag.save_pythag_data(df, df_team=df, data_dir=tmp_path)
+
+    pythag.save_rpw_data(exponentes, df, _ip(), data_dir=tmp_path)
+
+    escrito = pd.read_parquet(tmp_path / "runs_per_win.parquet")
+    valores = escrito["1 year"].dropna()
+    assert len(valores) > 0
+    assert valores.between(6.0, 14.0).all(), valores.describe()
+
+
+def test_fangraphs_necesita_las_entradas_lanzadas(tmp_path):
+    """
+    La formula de FanGraphs es 9 * (RS_liga / IP_liga) * 1.5 + 3. Sin IP no se
+    puede calcular, y publicarla a cero seria peor que no publicarla.
+    """
+    df = _liga_procesada()
+    exponentes = pythag.save_pythag_data(df, df_team=df, data_dir=tmp_path)
+
+    pythag.save_rpw_data(exponentes, df, _ip(), data_dir=tmp_path)
+
+    escrito = pd.read_parquet(tmp_path / "runs_per_win.parquet")
+    assert escrito["FanGraphs"].notna().any()
+    assert escrito["FanGraphs"].dropna().between(6.0, 14.0).all()
+
+
+# ---------------------------------------------------------------------------
+# El orquestador del pitagorico (run) y su linea de comandos
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def pythag_sin_base(monkeypatch, tmp_path):
+    """
+    Sustituye la consulta a SQL Server por dos DataFrames y redirige la
+    escritura a un directorio temporal. No se abre ninguna conexion.
+    """
+    equipos = _liga(range(2000, 2013))
+    ip = pd.DataFrame({"season": sorted(equipos.season.unique()), "Total_IP": 43000.0})
+    consultado = []
+
+    def falso_read_sql(sql, _engine):
+        consultado.append(sql)
+        return (ip.copy() if "mlbPitching" in sql else equipos.copy())
+
+    monkeypatch.setattr(pythag.pd, "read_sql", falso_read_sql)
+    monkeypatch.setattr(pythag, "get_connection", lambda: object())
+    monkeypatch.setattr(pythag.db, "dispose_engine", lambda: None)
+
+    escrituras = {}
+    for nombre in ("save_pythag_data", "save_rpw_data"):
+        original = getattr(pythag, nombre)
+
+        def envoltorio(*a, _o=original, _n=nombre, **k):
+            escrituras[_n] = True
+            k["data_dir"] = tmp_path
+            return _o(*a, **k)
+
+        monkeypatch.setattr(pythag, nombre, envoltorio)
+
+    return consultado, escrituras, tmp_path
+
+
+def test_run_consulta_calcula_y_escribe(pythag_sin_base):
+    consultado, escrituras, destino = pythag_sin_base
+
+    pythag.run()
+
+    assert len(consultado) == 2, "una consulta para equipos y otra para entradas"
+    assert escrituras == {"save_pythag_data": True, "save_rpw_data": True}
+    assert (destino / "pythag_exponents.parquet").exists()
+    assert (destino / "runs_per_win.parquet").exists()
+
+
+def test_run_acota_las_consultas_al_rango(pythag_sin_base):
+    """
+    Los marcadores tienen que salir resueltos. Un `{SEASON_MAX}` que llegue a
+    SQL sin sustituir es un error de sintaxis en plena ejecucion anual.
+    """
+    consultado, _, _ = pythag_sin_base
+
+    pythag.run()
+
+    for sql in consultado:
+        assert "{SEASON" not in sql
+        assert f"BETWEEN {seasons.MIN_SEASON} AND {seasons.MAX_SEASON}" in sql
+
+
+def test_run_recorta_lo_que_venga_fuera_de_rango(monkeypatch, tmp_path):
+    """
+    Filtro de garantia: si la vista devolviera temporadas fuera del rango --como
+    hacia swing/take con la temporada en curso-- no deben llegar al parquet.
+    """
+    equipos = _liga(range(2000, 2013))
+    intrusa = _liga([1899])
+    con_intrusa = pd.concat([equipos, intrusa], ignore_index=True)
+    ip = pd.DataFrame({"season": sorted(con_intrusa.season.unique()), "Total_IP": 43000.0})
+
+    monkeypatch.setattr(pythag.pd, "read_sql",
+                        lambda sql, _e: (ip.copy() if "mlbPitching" in sql else con_intrusa.copy()))
+    monkeypatch.setattr(pythag, "get_connection", lambda: object())
+    monkeypatch.setattr(pythag.db, "dispose_engine", lambda: None)
+    for nombre in ("save_pythag_data", "save_rpw_data"):
+        original = getattr(pythag, nombre)
+        monkeypatch.setattr(pythag, nombre,
+                            lambda *a, _o=original, **k: _o(*a, **{**k, "data_dir": tmp_path}))
+
+    pythag.run()
+
+    escrito = pd.read_parquet(tmp_path / "pythag_exponents.parquet")
+    assert escrito["season"].min() >= seasons.MIN_SEASON
+
+
+def test_la_conexion_se_cierra_aunque_run_termine(pythag_sin_base, monkeypatch):
+    cerrado = []
+    monkeypatch.setattr(pythag.db, "dispose_engine", lambda: cerrado.append(1))
+
+    pythag.run()
+
+    assert cerrado, "el pool quedaria abierto tras el pipeline"
+
+
+def test_el_cli_del_pitagorico_arranca_run(monkeypatch):
+    llamado = []
+    monkeypatch.setattr(pythag, "run", lambda: llamado.append(1))
+
+    assert pythag._cli([]) == 0
+    assert llamado == [1]
+
+
+def test_el_cli_acepta_las_tres_fechas(monkeypatch):
+    visto = []
+    monkeypatch.setattr(pythag, "run", lambda: visto.append(seasons.rango()))
+
+    pythag._cli(["--min-season", "1930", "--max-season", "2020"])
+
+    assert visto == [(1930, 2020)]
+
+
+def test_el_pitagorico_usa_la_conexion_compartida(monkeypatch):
+    """
+    Un envoltorio de una linea, pero importa que sea ESE: los tres scripts del
+    pipeline tienen que compartir el engine de db.py. Cuando cada uno abria el
+    suyo, la lista de servidores del .env no se honraba igual en todos.
+    """
+    centinela = object()
+    monkeypatch.setattr(pythag.db, "get_engine", lambda: centinela)
+
+    assert pythag.get_connection() is centinela

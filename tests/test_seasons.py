@@ -478,3 +478,60 @@ def test_ninguna_funcion_tapa_el_modulo_seasons_y_lo_usa_a_la_vez():
 
     detalle = "\n".join(culpables)
     assert not culpables, f"el modulo seasons queda tapado donde se usa:\n{detalle}"
+
+
+# ---------------------------------------------------------------------------
+# El fichero de log
+# ---------------------------------------------------------------------------
+
+def test_el_log_a_fichero_se_escribe_y_lleva_marca_de_tiempo(tmp_path):
+    """
+    El pipeline tarda minutos y se lanza con --log-file para poder revisarlo
+    despues. Sin la marca de tiempo no se sabe que paso tardo.
+    """
+    destino = tmp_path / "pipeline.log"
+
+    log = cli.setup_logging(log_file=str(destino))
+    log.info("paso uno")
+
+    for h in log.handlers:
+        h.flush()
+
+    contenido = destino.read_text(encoding="utf-8")
+    assert "paso uno" in contenido
+    assert "INFO" in contenido
+    assert "2" in contenido.split("INFO")[0], "falta la fecha delante del nivel"
+
+
+def test_el_log_crea_el_directorio_que_falte(tmp_path):
+    """
+    `--log-file logs/pipeline-2026.log` con logs/ inexistente reventaria al
+    arrancar, despues de haber escrito el comando y antes de hacer nada.
+    """
+    destino = tmp_path / "sin" / "crear" / "p.log"
+
+    cli.setup_logging(log_file=str(destino))
+
+    assert destino.exists()
+
+
+def test_cada_ejecucion_empieza_un_fichero_limpio(tmp_path):
+    """
+    Se abre en modo 'w': un log que acumula ejecuciones hace que revisar la
+    ultima sea buscar donde empieza.
+    """
+    destino = tmp_path / "p.log"
+
+    log = cli.setup_logging(log_file=str(destino))
+    log.info("ejecucion vieja")
+    for h in log.handlers:
+        h.flush()
+
+    log = cli.setup_logging(log_file=str(destino))
+    log.info("ejecucion nueva")
+    for h in log.handlers:
+        h.flush()
+
+    contenido = destino.read_text(encoding="utf-8")
+    assert "ejecucion nueva" in contenido
+    assert "ejecucion vieja" not in contenido
