@@ -577,3 +577,128 @@ def test_las_vueltas_al_orden_consultan_su_vista(vistas):
     be.load_tto_impact_rows_from_db()
 
     assert any("tto" in v for v in vistas["consultadas"])
+
+
+# ---------------------------------------------------------------------------
+# El orquestador completo
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def pipeline_falso(monkeypatch, tmp_path):
+    """
+    main() de punta a punta sin base de datos.
+
+    Se sustituyen los cargadores de vistas por listas fijas --su cableado ya se
+    prueba arriba, uno por uno-- y se dejan intactos el calculo sobre la matriz
+    RE24, la validacion de rango y las tres escrituras, que es lo que se quiere
+    ver funcionando junto.
+    """
+    matriz = pd.DataFrame([
+        {"season": 2024, "outs": o, "runners": r, "run_value": rv, "n": 5000,
+         "event_cd": cd}
+        for o in (0, 1, 2)
+        for r, rv in (("000", 0.48), ("100", 0.85), ("010", 1.05), ("001", 1.35),
+                      ("110", 1.45), ("101", 1.75), ("011", 1.95), ("111", 2.25))
+        for cd in (-1, 15)
+    ])
+    matriz.to_parquet(tmp_path / "re24_values.parquet", index=False)
+
+    # El valor tiene que CRECER al avanzar el corredor. Con el mismo numero en
+    # todos los estados, robar con exito no gana nada, la guarda de monotonia
+    # anula todas las celdas y el parquet sale sin un solo break-even.
+    VALOR = {"000": 0.48, "100": 0.85, "010": 1.05, "001": 1.35,
+             "110": 1.45, "101": 1.75, "011": 1.95, "111": 2.25}
+    pd.DataFrame([
+        {"season": 2024, "outs": o, "runners": r, "count": c,
+         "run_value": VALOR[r] * (1 - 0.25 * o), "n": 5000}
+        for o in (0, 1, 2, 3) for r in VALOR for c in ("0-0", "3-2")
+    ]).to_parquet(tmp_path / "re288_values.parquet", index=False)
+
+    def be_falso(*a, **k):
+        return [{"season": 2024, "type": "stealing", "scenario": "esc",
+                 "label": "Esc", "outs": 0, "breakeven_pct": 0.7, "n": 1000}]
+
+    def impacto_falso(*a, **k):
+        return [{"season": 2024, "type": "ibb", "scenario": "010",
+                 "label": "Runner on 2B", "outs": 1, "delta_re": 0.5,
+                 "baseline_re": 0.7, "delta_re_pct": 0.7, "n": 1000}]
+
+    for nombre in ("load_stretch_break_even_rows_from_db",
+                   "load_advance_break_even_rows_from_db",
+                   "load_tag_up_break_even_rows_from_db",
+                   "load_bunt_break_even_rows_from_db",
+                   "load_swing_take_break_even_rows_from_db",
+                   "load_swing_take_zone_break_even_rows_from_db"):
+        monkeypatch.setattr(be, nombre, be_falso)
+
+    for nombre in ("load_ph_impact_rows_from_db",
+                   "load_platoon_baseline_impact_rows_from_db",
+                   "load_tto_impact_rows_from_db"):
+        monkeypatch.setattr(be, nombre, impacto_falso)
+
+    return tmp_path
+
+
+def test_el_pipeline_escribe_los_tres_parquets(pipeline_falso):
+    be.main(data_dir=pipeline_falso)
+
+    for nombre in ("breakeven_points.parquet", "re_impact.parquet",
+                   "sb_breakeven_by_count.parquet"):
+        assert (pipeline_falso / nombre).exists(), f"falta {nombre}"
+
+
+def test_el_pipeline_deja_el_manifiesto_de_procedencia(pipeline_falso):
+    """
+    Es lo que permite que la siguiente extraccion avise de que estas tablas
+    quedaron obsoletas. Si no se escribiera, ese aviso no saltaria nunca.
+    """
+    be.main(data_dir=pipeline_falso)
+
+    manifiesto = json.loads(
+        (pipeline_falso / "derived_from.json").read_text(encoding="utf-8")
+    )
+    assert manifiesto["inputs"]
+    assert "breakeven_points.parquet" in manifiesto["outputs"]
+
+
+def test_el_robo_se_calcula_desde_la_matriz_y_no_de_una_vista(pipeline_falso):
+    """
+    Los break-even de robo salen de la matriz RE24, no de SQL. Es la unica
+    familia asi, y por eso sigue funcionando aunque la base no responda.
+    """
+    be.main(data_dir=pipeline_falso)
+
+    df = pd.read_parquet(pipeline_falso / "breakeven_points.parquet")
+    assert "stealing" in set(df["type"])
+
+
+def test_el_impacto_del_toque_de_sacrificio_sale_de_la_matriz(pipeline_falso):
+    be.main(data_dir=pipeline_falso)
+
+    df = pd.read_parquet(pipeline_falso / "re_impact.parquet")
+    assert "sac_bunt" in set(df["type"])
+
+
+def test_el_cli_lanza_el_pipeline_y_cierra_la_conexion(monkeypatch):
+    llamado, cerrado = [], []
+    monkeypatch.setattr(be, "main", lambda: llamado.append(1))
+    monkeypatch.setattr(be.db, "dispose_engine", lambda: cerrado.append(1))
+
+    assert be._cli([]) == 0
+    assert llamado == [1]
+    assert cerrado == [1]
+
+
+def test_la_conexion_se_cierra_aunque_el_pipeline_falle(monkeypatch):
+    """
+    El engine se comparte entre las diecisiete vistas. Si un fallo lo dejara
+    abierto, la conexion quedaria colgada hasta que el proceso muera.
+    """
+    cerrado = []
+    monkeypatch.setattr(be, "main", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(be.db, "dispose_engine", lambda: cerrado.append(1))
+
+    with pytest.raises(RuntimeError):
+        be._cli([])
+
+    assert cerrado == [1]
