@@ -1506,7 +1506,7 @@ def _warn_if_derived_data_now_stale(final_dir: Path, promoted: list) -> None:
     log.warning("  Ejecuta ahora:  python utils/create_break_even_points.py")
 
 
-def extract_and_save_data(only=None):
+def extract_and_save_data(only=None, data_dir=None):
     """
     Extract data from SQL Server and save as parquet files.
 
@@ -1533,8 +1533,11 @@ def extract_and_save_data(only=None):
             )
         datasets = [ds for ds in DATASETS if ds.key in set(only)]
 
-    script_dir = Path(__file__).parent
-    final_dir = script_dir.parent / "app" / "data"
+    # data_dir es un parametro con valor por defecto y no una ruta fija dentro,
+    # para poder escribir a un directorio temporal en los tests. En produccion
+    # nadie lo pasa y el comportamiento es el mismo de siempre. Mismo patron que
+    # save_pythag_data y load_re24_matrix.
+    final_dir = Path(data_dir) if data_dir is not None else Path(__file__).parent.parent / "app" / "data"
     final_dir.mkdir(parents=True, exist_ok=True)
 
     # El staging vive DENTRO de app/data para garantizar que esta en el mismo
