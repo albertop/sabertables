@@ -719,3 +719,256 @@ def test_un_parquet_al_que_le_falta_una_columna_no_se_publica(client, monkeypatc
 
     with pytest.raises(Exception, match=texto):
         m._load_dataset(dataset)
+
+
+# ---------------------------------------------------------------------------
+# Los ultimos bordes
+# ---------------------------------------------------------------------------
+
+def test_una_temporada_absurdamente_grande_se_rechaza(client):
+    """
+    Un entero de 64 bits en `season` desbordaria el int32 de las comparaciones
+    aguas abajo. Se corta en el modelo, antes de tocar ningun parquet.
+    """
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE24", "from_season": 2**40, "to_season": 2**40,
+    })
+
+    assert r.status_code == 422
+
+
+def test_pedir_antes_del_primer_anio_disponible_lo_dice(client):
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE24", "from_season": 1850, "to_season": 1900,
+    })
+
+    assert r.status_code == 400
+    assert "before available data" in r.json()["detail"]
+
+
+def test_pedir_despues_del_ultimo_anio_disponible_lo_dice(client):
+    """
+    Es el mensaje que vera quien pida la temporada en curso antes de que el
+    pipeline la publique.
+    """
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE24", "from_season": 2024, "to_season": 2099,
+    })
+
+    assert r.status_code == 400
+    assert "after available data" in r.json()["detail"]
+
+
+def test_una_url_que_no_se_puede_parsear_no_da_origen():
+    """
+    urlparse lanza ValueError con un corchete sin cerrar en el host. Dejar que
+    suba convertiria una cabecera malformada en un 500.
+    """
+    from app.main import _origen_de
+
+    assert _origen_de("http://[sin-cerrar") is None
+
+
+def test_park_factors_exige_la_temporada(client):
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "PARK_FACTORS", "average": 1,
+    })
+
+    assert r.status_code == 400
+    assert "Season is required" in r.json()["detail"]
+
+
+def test_las_demas_tablas_exigen_el_rango_completo(client):
+    r = client.post("/api/generate-table", json={"matrix_type": "RE24"})
+
+    assert r.status_code == 400
+    assert "from_season" in r.json()["detail"]
+
+
+def test_un_dataset_cargado_se_devuelve_tal_cual(client):
+    """Control del caso de error: con el dataset bien, sale el DataFrame."""
+    import pandas as pd
+
+    import app.main as m
+
+    assert isinstance(m.dataset("re24"), pd.DataFrame)
+
+
+def test_un_fallo_inesperado_al_arrancar_se_propaga(monkeypatch, tmp_path):
+    """
+    No es FileNotFoundError sino cualquier otra cosa --un parquet corrupto, por
+    ejemplo--. Arrancar igual dejaria la app sirviendo tablas a medias.
+    """
+    import app.main as m
+
+    monkeypatch.setattr(m.pd, "read_parquet",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("parquet ilegible")))
+
+    with pytest.raises(RuntimeError, match="ilegible"):
+        m.load_essential_data()
+
+
+@pytest.mark.parametrize("analisis,marca", [("ph_position", False), ("ph_pitcher", True)])
+def test_el_esquema_viejo_de_bateador_emergente_se_sigue_leyendo(client, monkeypatch, analisis, marca):
+    """
+    El parquet nuevo trae `type` con ph_position y ph_pitcher separados; el
+    viejo traia un solo `ph` con una bandera `ph_for_pitcher`. Los dos tienen
+    que seguir funcionando, o un despliegue con datos anteriores serviria la
+    tabla vacia.
+    """
+    import pandas as pd
+
+    import app.main as m
+
+    # 2021 y no 2024: ph_pitcher lleva un tope propio en <= 2021, porque es el
+    # ultimo anio en que los lanzadores batearon con regularidad antes del
+    # bateador designado universal.
+    viejo = pd.DataFrame({
+        "season": [2021, 2021], "type": ["ph", "ph"],
+        "ph_for_pitcher": [False, True],
+        "scenario": ["a", "b"], "label": ["A", "B"], "outs": [0, 0],
+        "delta_re": [0.1, 0.2], "n": [100, 200],
+    })
+    monkeypatch.setitem(m.data_store, "re_impact", viejo)
+
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE_IMPACT", "from_season": 2021, "to_season": 2021,
+        "analysis_type": analisis,
+    })
+
+    assert r.status_code == 200
+    filas = r.json()["table_data"]
+    assert len(filas) == 1
+    assert filas[0]["scenario"] == ("b" if marca else "a")
+
+
+def test_el_bateador_emergente_lanzador_se_corta_en_2021(client, monkeypatch):
+    """
+    2021 fue el ultimo anio en que los lanzadores batearon con regularidad; en
+    2022 la Liga Nacional adopto el bateador designado. Desde entonces un
+    lanzador en el cajon es una rareza --una entrada de paliza, un partido sin
+    banco-- y esas apariciones no describen lo que este analisis mide.
+
+    OJO: ese 2021 esta escrito a mano en TRES sitios --la vista SQL, el regex de
+    app.js y aqui-- porque no es una de las tres fechas de utils/seasons.py: es
+    una regla del juego, no un rango de extraccion. Este test es lo que hay para
+    que las tres no se separen sin que nadie lo note.
+    """
+    import pandas as pd
+
+    import app.main as m
+
+    monkeypatch.setitem(m.data_store, "re_impact", pd.DataFrame({
+        "season": [2021, 2022], "type": ["ph_pitcher", "ph_pitcher"],
+        "scenario": ["a", "b"], "label": ["A", "B"], "outs": [0, 0],
+        "delta_re": [0.1, 0.2], "n": [100, 200],
+    }))
+
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE_IMPACT", "from_season": 2021, "to_season": 2022,
+        "analysis_type": "ph_pitcher",
+    })
+
+    temporadas = {f["season"] for f in r.json()["table_data"]}
+    assert temporadas == {2021}, "2022 en adelante no deberia aparecer"
+
+
+def test_un_tipo_de_tabla_invalido_se_rechaza_en_el_modelo(client):
+    """
+    El contrato vive en el patron de Pydantic, no en una lista dentro del
+    endpoint: por eso es 422 y no 400.
+
+    Habia ademas una segunda lista en el cuerpo de la funcion con los mismos
+    dieciocho tipos y un raise 400 que no podia ejecutarse nunca. Se borro: dos
+    listas iguales se separan tarde o temprano y la de dentro no avisaria.
+    """
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "NO_EXISTE_ESTE_TIPO", "from_season": 2024, "to_season": 2024,
+    })
+
+    assert r.status_code == 422
+
+
+def _origenes_de_cors(m):
+    """
+    Los origenes que se le pasaron a CORSMiddleware.
+
+    OJO, hay DOS listas de nombre casi igual y proposito distinto:
+    `ALLOWED_ORIGINS` (mayusculas) es la del guard anti-abuso de verify_origin, y
+    `allowed_origins` (minusculas) es la de CORS. Mirar la que no toca hace que
+    el test compruebe otra cosa y pase o falle por la razon equivocada.
+    """
+    for mw in m.app.user_middleware:
+        if "CORS" in mw.cls.__name__:
+            return list(mw.kwargs.get("allow_origins", []))
+    raise AssertionError("no hay CORSMiddleware montado")
+
+
+def test_un_origen_de_produccion_sin_esquema_se_normaliza_a_https(monkeypatch):
+    """
+    PRODUCTION_ORIGIN puede venir como 'sabertables.com' a secas. En produccion
+    solo se admiten origenes HTTPS, asi que se le anade el esquema; sin eso, el
+    navegador --que siempre manda el origen completo-- no casaria nunca.
+    """
+    import importlib
+
+    import app.main
+
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("PRODUCTION_ORIGIN", "ejemplo.invalid")
+    m = importlib.reload(app.main)
+    try:
+        assert "https://ejemplo.invalid" in _origenes_de_cors(m)
+    finally:
+        monkeypatch.undo()
+        importlib.reload(app.main)
+
+
+
+def test_confiar_en_cualquier_proxy_deja_un_aviso(monkeypatch, capsys):
+    """
+    Con PROXY_TRUSTED_IPS='*' cualquiera puede falsear X-Forwarded-For y saltarse
+    el rate limit. Es una configuracion legitima detras de un proxy controlado,
+    pero tiene que quedar dicho en el log.
+    """
+    import importlib
+
+    import app.main
+
+    monkeypatch.setenv("PROXY_TRUSTED_IPS", "*")
+    importlib.reload(app.main)
+    try:
+        salida = capsys.readouterr()
+        assert "PROXY_TRUSTED_IPS" in (salida.out + salida.err)
+    finally:
+        monkeypatch.undo()
+        importlib.reload(app.main)
+
+
+def test_un_cuerpo_troceado_y_enorme_se_corta_mientras_llega(client):
+    """
+    Sin Content-Length hay que contar lo que llega. Si solo se mirara la
+    cabecera, bastaria con enviar el cuerpo troceado --sin declararla-- para
+    saltarse el limite entero.
+
+    El envio como generador hace que httpx use Transfer-Encoding: chunked y no
+    ponga Content-Length.
+    """
+    from app.main import MAX_REQUEST_BODY_BYTES
+
+    trozo = b"x" * 65536
+    veces = (MAX_REQUEST_BODY_BYTES // len(trozo)) + 4
+
+    def troceado():
+        yield b'{"matrix_type": "RE24", "relleno": "'
+        for _ in range(veces):
+            yield trozo
+        yield b'"}'
+
+    r = client.post(
+        "/api/generate-table",
+        content=troceado(),
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert r.status_code == 413

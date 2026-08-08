@@ -1335,13 +1335,12 @@ async def generate_table_endpoint(request: Request, table_request: TableRequest)
 async def generate_table(request: Request, table_request: TableRequest):
     """Generate run expectancy table based on parameters."""
     try:
-        # Validate matrix type
-        valid_matrix_types = ["RE24", "RE24_PCT", "RE288", "RE288_FREQ", "RE288_TRANS", "LINEAR_WEIGHTS", "R24_FREQUENCIES", "WIN_EXPECTANCY", "WIN_PROBABILITY_ADDED", "LEVERAGE_INDEX", "WOBA_COEFFS", "FIP_CONST", "PARK_FACTORS", "RE24_TRANSITIONS", "PYTHAG_EXPONENTS", "RUNS_PER_WIN", "BREAKEVEN_POINTS", "RE_IMPACT"]
-        if table_request.matrix_type not in valid_matrix_types:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid matrix type. Must be one of: {', '.join(valid_matrix_types)}"
-            )
+        # Aqui habia una lista con los dieciocho matrix_type validos y un
+        # `if not in: raise 400`. No podia ejecutarse NUNCA: el modelo ya valida
+        # matrix_type con un patron que enumera exactamente los mismos, asi que
+        # cualquier valor invalido se rechaza con 422 antes de entrar aqui.
+        # Peor aun, eran dos listas que podian separarse sin que nadie lo notara.
+        # El contrato vive en el modelo.
 
         # WOBA_COEFFS doesn't use season range
         if table_request.matrix_type == "WOBA_COEFFS":
