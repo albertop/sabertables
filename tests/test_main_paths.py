@@ -616,3 +616,106 @@ def test_si_un_dataset_quedo_a_medias_se_falla_al_pedirlo(client, monkeypatch):
 
     with pytest.raises(Exception, match="re24"):
         m.dataset("re24")
+
+
+@pytest.fixture
+def app_en_produccion(monkeypatch):
+    """
+    Recarga app.main con ENVIRONMENT=production y LO DEVUELVE A SU SITIO al salir.
+
+    monkeypatch restaura la variable, no el modulo: sin la vuelta atras, app.main
+    se queda en produccion para todos los tests que vengan despues. Paso al
+    activar API_REQUIRE_ORIGIN y dejo 30 tests en 403 por contaminacion.
+    """
+    import importlib
+
+    import app.main
+
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    yield importlib.reload(app.main)
+    monkeypatch.undo()
+    importlib.reload(app.main)
+
+
+def test_en_produccion_se_redirige_a_https_conservando_la_query(app_en_produccion):
+    """
+    Perder la query en el redirect convertiria un enlace con parametros en la
+    portada sin ellos, y el usuario no sabria por que.
+    """
+    with TestClient(app_en_produccion.app) as c:
+        r = c.get("http://sabertables.com/?x=1&y=2", follow_redirects=False)
+
+    assert r.status_code in (301, 307, 308)
+    destino = r.headers["location"]
+    assert destino.startswith("https://")
+    assert "x=1" in destino and "y=2" in destino
+
+
+def test_en_produccion_el_origen_permitido_lleva_esquema(app_en_produccion):
+    """
+    PRODUCTION_ORIGIN puede venir como 'sabertables.com' a secas. Sin normalizar,
+    la comparacion contra la cabecera Origin --que siempre trae esquema-- no
+    casaria nunca y el guard rechazaria a todo el mundo.
+    """
+    assert all(o.startswith("http") for o in app_en_produccion.ALLOWED_ORIGINS)
+
+
+# ---------------------------------------------------------------------------
+# El suelo de RE288
+# ---------------------------------------------------------------------------
+
+def test_sin_datasets_cargados_el_suelo_cae_al_valor_de_respaldo(monkeypatch):
+    """
+    El suelo se DERIVA del parquet. El valor de config.py es solo respaldo para
+    cuando aun no hay datos cargados -- por ejemplo si se valida antes del
+    arranque--, y nunca debe ganarle al derivado.
+    """
+    import app.main as m
+
+    monkeypatch.setitem(m.data_store, "seasons", None)
+
+    assert m._suelo_re288() == m.RE288_MIN_SEASON
+
+
+# ---------------------------------------------------------------------------
+# Datasets que no se pueden cargar
+# ---------------------------------------------------------------------------
+
+def test_si_falta_el_parquet_de_un_dataset_se_dice_cual(client, monkeypatch):
+    """
+    Un fichero ausente es un despliegue incompleto. El mensaje tiene que llevar
+    el nombre o hay que ir a comparar la carpeta con el catalogo a mano.
+    """
+    import app.main as m
+
+    monkeypatch.setitem(m.data_store, "pythag_exponents", None)
+    monkeypatch.setattr(m.pd, "read_parquet",
+                        lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError("no esta")))
+
+    with pytest.raises(Exception, match="pythag_exponents"):
+        m._load_dataset("pythag_exponents")
+
+
+@pytest.mark.parametrize("dataset,texto", [
+    ("pythag_exponents", "Pythagorean Exponents"),
+    ("runs_per_win", "Runs Per Win"),
+    ("breakeven_points", "Break-Even Points"),
+    ("sb_breakeven_by_count", "SB Break-Even by Count"),
+    ("re_impact", "RE Impact"),
+])
+def test_un_parquet_al_que_le_falta_una_columna_no_se_publica(client, monkeypatch, dataset, texto):
+    """
+    Es el contrato entre el pipeline y la web. Ya paso una vez:
+    re288_frequencies servia `frequency` mientras la app exigia
+    `pa_final_count_share`, y ese endpoint quedo roto sin que nadie lo supiera.
+    """
+    import pandas as pd
+
+    import app.main as m
+
+    monkeypatch.setitem(m.data_store, dataset, None)
+    monkeypatch.setattr(m.pd, "read_parquet",
+                        lambda *a, **k: pd.DataFrame({"columna_que_no_toca": [1]}))
+
+    with pytest.raises(Exception, match=texto):
+        m._load_dataset(dataset)
