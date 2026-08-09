@@ -5,9 +5,12 @@ Catálogo de análisis propuestos y todavía no publicados. Viene de
 haría falta y si es viable con los datos que hay.
 
 **Esto no es una lista de tareas.** Son ideas con su triaje. Lo que sí está
-comprometido vive en la sección 8 de [TODO.md](TODO.md), y la regla vigente es
-que **no se hace ningún análisis nuevo hasta poner la versión actual en
-producción**.
+comprometido vive en la sección 8 de [TODO.md](TODO.md).
+
+La regla era que no se hacía ningún análisis nuevo hasta poner la versión actual
+en producción. **Se cumplió: la `1.2025.37` está en producción desde el 9 de
+agosto de 2026**, con los tres análisis en carreras y GIDP dentro. El siguiente
+candidato se puede empezar.
 
 ## Ya publicado
 

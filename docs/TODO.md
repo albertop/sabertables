@@ -2701,3 +2701,10 @@ Eso rompió dos tests estáticos que buscaban el literal `'sac_bunt'` en cada
 cadena: daban por rotos dos tipos que funcionan. Ahora entienden el despacho
 compartido, y siguen guardando a los demás. Verificado por mutación —al quitar
 `gidp` del mapa se ponen rojos—.
+
+### 8.7-bis En producción (9 ago 2026)
+
+`1.2025.37`, con GIDP y los tres análisis en carreras. Verificado en el sitio
+publicado: la opción `gidp` está en el desplegable y el `app.js` servido lleva
+`ESCENARIOS_POR_ESTADO_DE_BASES`, el despacho compartido que evita volver a
+parchear seis cadenas por cada tipo nuevo.
