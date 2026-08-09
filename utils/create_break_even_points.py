@@ -2039,6 +2039,93 @@ def _normalize_tto_impact_view_df(df: pd.DataFrame) -> pd.DataFrame:
     ]]
 
 
+QUERY_SB_ATTEMPTS = """
+SELECT season, outs, runners, scenario, n_success, n_fail, n_attempts
+FROM dbo.v_re_analysis_sb_attempts
+"""
+
+
+def load_steal_impact_rows_from_db(re_lookup: dict, seasons_list: list) -> list:
+    """
+    El robo expresado en CARRERAS, no como porcentaje de break-even.
+
+    Los tres componentes salen de la matriz RE24, igual que el break-even; lo
+    que aporta la vista `v_re_analysis_sb_attempts` es la TASA DE EXITO
+    OBSERVADA, que el break-even no necesita y el valor esperado si:
+
+        neto = p * ganancia - (1 - p) * coste
+
+    Sin ella solo se podian publicar ganancia y coste por separado.
+
+    Se reutilizan las mismas guardas que el break-even, porque los datos son los
+    mismos: si robar con exito BAJA la RE, la celda esta mal estimada --mismos
+    outs, corredor en mejor base, no puede bajar-- y no se publica un numero en
+    carreras que le daria credibilidad.
+    """
+    log.info("")
+    log.info("Extracting steal impact (runs) from SQL view...")
+    engine = connect_to_database()
+
+    intentos = _read_sql_view(engine, QUERY_SB_ATTEMPTS, "dbo.v_re_analysis_sb_attempts")
+    if intentos.empty:
+        log.info("  sin intentos de robo registrados")
+        return []
+
+    requeridas = {"season", "outs", "scenario", "n_success", "n_attempts"}
+    faltan = requeridas - set(intentos.columns)
+    if faltan:
+        raise ValueError(f"SB attempts view missing required columns: {faltan}")
+
+    por_celda = {
+        (int(r["season"]), int(r["outs"]), str(r["scenario"])): (int(r["n_success"]), int(r["n_attempts"]))
+        for _, r in intentos.iterrows()
+    }
+
+    rows = []
+    for season in seasons_list:
+        for label, antes, despues, tras_cs in SB_SCENARIOS:
+            for outs in range(3):
+                clave = (season, outs, label)
+                if clave not in por_celda:
+                    continue
+                exitos, intentos_n = por_celda[clave]
+                if intentos_n == 0:
+                    continue
+
+                re_antes = re_lookup.get((season, outs, antes))
+                re_robo = re_lookup.get((season, outs, despues))
+                # Con 2 outs el atrapado es el tercero: la entrada acaba y la RE
+                # es 0 por definicion, no un valor que buscar en la matriz.
+                re_cs = 0.0 if outs == 2 else re_lookup.get((season, outs + 1, tras_cs))
+                if re_antes is None or re_robo is None or re_cs is None:
+                    continue
+
+                carreras = impacto_en_carreras(
+                    quedarse=re_antes, exito=re_robo, fallo=re_cs,
+                    p_exito=exitos / intentos_n,
+                )
+                if not _steal_gain_is_possible(re_antes, re_robo):
+                    carreras["delta_re"] = None
+
+                rows.append({
+                    "season": season,
+                    "type": "steal_runs",
+                    "scenario": label,
+                    "label": label,
+                    "outs": outs,
+                    "delta_re": carreras["delta_re"],
+                    "baseline_re": re_antes,
+                    "gain_runs": carreras["gain_runs"],
+                    "cost_runs": carreras["cost_runs"],
+                    # Los INTENTOS, no los fallos: el break-even publica n_fail
+                    # porque domina su varianza, pero esta tabla mide otra cosa.
+                    "n": intentos_n,
+                })
+
+    log.info(f"  Steal impact rows (runs): {len(rows):,}")
+    return rows
+
+
 def load_tto_impact_rows_from_db() -> list:
     """
     Load TTO RE impact rows from SQL view.

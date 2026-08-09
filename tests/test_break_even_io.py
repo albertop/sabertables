@@ -1199,3 +1199,155 @@ def test_el_tag_up_valida_sus_estados():
 
     with pytest.raises(ValueError, match="777"):
         be.calculate_tagging_breakeven(df)
+
+
+# ---------------------------------------------------------------------------
+# Impacto del robo en carreras (seccion 10 del TODO)
+# ---------------------------------------------------------------------------
+
+def _intentos(exitos=780, fallos=220):
+    """Lo que devuelve v_re_analysis_sb_attempts."""
+    return pd.DataFrame([{
+        "season": 2024, "outs": 0, "runners": "100",
+        "scenario": "Runner on 1B steals 2B",
+        "n_success": exitos, "n_fail": fallos,
+        "n_attempts": exitos + fallos,
+    }])
+
+
+def _re_robo():
+    """RE24 coherente: robar sube la RE, ser atrapado la baja."""
+    return {(2024, 0, "100"): 0.85, (2024, 0, "010"): 1.05, (2024, 1, "000"): 0.28}
+
+
+def test_el_robo_en_carreras_usa_la_tasa_observada(vistas):
+    """
+    Es lo que aporta la vista nueva: sin ella solo se podian publicar ganancia y
+    coste, no el valor esperado de intentarlo.
+    """
+    vistas["respuestas"] = {"sb_attempts": _intentos()}
+
+    filas = be.load_steal_impact_rows_from_db(_re_robo(), [2024])
+    fila = next(f for f in filas if f["outs"] == 0)
+
+    p = 780 / 1000
+    ganancia = 1.05 - 0.85
+    coste = 0.85 - 0.28
+    assert fila["delta_re"] == pytest.approx(p * ganancia - (1 - p) * coste)
+
+
+def test_las_filas_del_robo_van_al_esquema_de_re_impact(vistas):
+    """
+    Comparten parquet con el toque de sacrificio y la base intencional, asi que
+    tienen que traer las mismas columnas o el endpoint se rompe.
+    """
+    vistas["respuestas"] = {"sb_attempts": _intentos()}
+
+    fila = be.load_steal_impact_rows_from_db(_re_robo(), [2024])[0]
+
+    assert {"season", "type", "scenario", "label", "outs", "delta_re", "n"} <= set(fila)
+    assert fila["type"] == "steal_runs"
+
+
+def test_el_n_publicado_son_los_INTENTOS_y_no_los_fallos(vistas):
+    """
+    Los break-even publican n_fail, porque es el termino que domina su varianza.
+    Una tabla en carreras quiere los intentos totales: son denominadores
+    distintos y copiarlos daria marcadores de fiabilidad que describen otra cosa.
+    """
+    vistas["respuestas"] = {"sb_attempts": _intentos(exitos=780, fallos=220)}
+
+    fila = be.load_steal_impact_rows_from_db(_re_robo(), [2024])[0]
+
+    assert fila["n"] == 1000, "los intentos, no los 220 fallos"
+
+
+def test_un_robo_que_baja_la_re_no_publica_impacto(vistas):
+    """
+    Misma guarda que en el break-even: robar con exito no puede bajar la RE.
+    Cuando la matriz dice lo contrario, la celda esta mal estimada y publicar
+    una cifra en carreras seria darle credibilidad.
+    """
+    vistas["respuestas"] = {"sb_attempts": _intentos()}
+    incoherente = {(2024, 0, "100"): 1.20, (2024, 0, "010"): 0.90, (2024, 1, "000"): 0.28}
+
+    filas = be.load_steal_impact_rows_from_db(incoherente, [2024])
+
+    assert all(f["delta_re"] is None or pd.isna(f["delta_re"]) for f in filas)
+
+
+def test_sin_intentos_registrados_no_se_publica_la_celda(vistas):
+    """Una celda sin un solo intento no dice nada sobre la decision."""
+    vistas["respuestas"] = {"sb_attempts": pd.DataFrame(columns=[
+        "season", "outs", "runners", "scenario", "n_success", "n_fail", "n_attempts"])}
+
+    assert be.load_steal_impact_rows_from_db(_re_robo(), [2024]) == []
+
+
+def test_con_dos_outs_el_atrapado_vale_cero_por_definicion(vistas):
+    """
+    El tercer out acaba la entrada: la RE posterior es CERO, no un valor que
+    buscar en la matriz con outs=3, que no existe.
+
+    Sin esa regla la celda desaparece en silencio --el lookup falla y se salta--
+    y justo con dos outs es cuando mas se roba: 1.163 intentos en 2025 frente a
+    788 con cero outs.
+    """
+    vistas["respuestas"] = {"sb_attempts": pd.DataFrame([{
+        "season": 2024, "outs": 2, "runners": "100",
+        "scenario": "Runner on 1B steals 2B",
+        "n_success": 800, "n_fail": 200, "n_attempts": 1000,
+    }])}
+    # A proposito SIN entrada para (2024, 3, "000"): con la regla no hace falta.
+    solo_dos_outs = {(2024, 2, "100"): 0.22, (2024, 2, "010"): 0.32}
+
+    filas = be.load_steal_impact_rows_from_db(solo_dos_outs, [2024])
+
+    assert filas, "la celda de dos outs deberia publicarse"
+    fila = filas[0]
+    assert fila["cost_runs"] == pytest.approx(0.22), "el coste es la RE entera"
+    assert fila["delta_re"] == pytest.approx(0.8 * (0.32 - 0.22) - 0.2 * 0.22)
+
+
+def test_la_vista_de_intentos_tiene_que_traer_sus_columnas(vistas):
+    """Si la vista cambia, mejor abortar que calcular con lo que quede."""
+    vistas["respuestas"] = {"sb_attempts": pd.DataFrame({"season": [2024]})}
+
+    with pytest.raises(ValueError, match="SB attempts view"):
+        be.load_steal_impact_rows_from_db(_re_robo(), [2024])
+
+
+def test_una_celda_sin_intentos_registrados_se_salta(vistas):
+    """
+    La vista solo trae celdas con al menos un intento, pero el bucle recorre los
+    cuatro escenarios por tres estados de out: la mayoria no estara.
+    """
+    vistas["respuestas"] = {"sb_attempts": _intentos()}
+
+    filas = be.load_steal_impact_rows_from_db(_re_robo(), [2024])
+
+    assert len(filas) == 1, "solo la celda que la vista trajo"
+
+
+def test_una_celda_sin_re_en_la_matriz_se_salta(vistas):
+    """Sin los tres estados de RE no hay carreras que calcular."""
+    vistas["respuestas"] = {"sb_attempts": _intentos()}
+    incompleta = {(2024, 0, "100"): 0.85}
+
+    assert be.load_steal_impact_rows_from_db(incompleta, [2024]) == []
+
+
+def test_una_celda_con_cero_intentos_no_divide_por_cero(vistas):
+    """
+    La vista trae `HAVING n_attempts > 0`, asi que esto no deberia llegar. La
+    guarda esta porque la alternativa es un ZeroDivisionError al calcular la
+    tasa, y el pipeline entero se caeria por una fila rara de una vista que
+    alguien toque manana.
+    """
+    vistas["respuestas"] = {"sb_attempts": pd.DataFrame([{
+        "season": 2024, "outs": 0, "runners": "100",
+        "scenario": "Runner on 1B steals 2B",
+        "n_success": 0, "n_fail": 0, "n_attempts": 0,
+    }])}
+
+    assert be.load_steal_impact_rows_from_db(_re_robo(), [2024]) == []
