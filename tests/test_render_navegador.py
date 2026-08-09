@@ -265,3 +265,69 @@ def test_el_marcador_es_redondo(pagina):
     m = _marcadores(pagina)
 
     assert "50%" in m["redondeado"] or "px" in m["redondeado"], m["redondeado"]
+
+
+# ---------------------------------------------------------------------------
+# El rombo de bases
+# ---------------------------------------------------------------------------
+
+# Los que muestran estado de bases. `running_runs` NO esta: estirar el batazo no
+# tiene estado de bases, porque el que corre es el bateador.
+CON_ROMBO = ["steal_runs", "tagging_runs", "sac_bunt", "ibb"]
+
+
+def _rombos(pagina) -> dict:
+    return pagina.evaluate(
+        """() => {
+            const svgs = document.querySelectorAll('#re-impact-table-body svg');
+            const rellenos = Array.from(document.querySelectorAll('#re-impact-table-body svg *'))
+                .map(e => e.getAttribute('fill'))
+                .filter(f => f && f !== 'none' && !/#fff|white|transparent/i.test(f));
+            return { svgs: svgs.length, iluminadas: rellenos.length,
+                     colores: [...new Set(rellenos)] };
+        }"""
+    )
+
+
+@pytest.mark.parametrize("analisis", CON_ROMBO)
+def test_el_rombo_de_bases_se_dibuja(pagina, analisis):
+    """
+    La tabla dibuja un diagrama del campo con las bases ocupadas. La funcion que
+    lo pinta recibe `scenario` esperando "100", "010"... Si se le pasa el texto
+    descriptivo ("Double steal"), no reconoce nada y sale el ROMBO VACIO: sin
+    error, con la tabla llena de numeros correctos y las bases todas apagadas.
+    """
+    _generar_re_impact(pagina, analisis)
+    r = _rombos(pagina)
+
+    assert r["svgs"] > 0, f"{analisis}: ninguna fila dibuja el rombo de bases"
+
+
+@pytest.mark.parametrize("analisis", CON_ROMBO)
+def test_el_rombo_ilumina_bases_ocupadas(pagina, analisis):
+    """
+    Un rombo dibujado pero con todas las bases apagadas es el mismo fallo un
+    paso mas adelante: el estado de bases no se reconocio.
+    """
+    _generar_re_impact(pagina, analisis)
+    r = _rombos(pagina)
+
+    assert r["iluminadas"] > 0, (
+        f"{analisis}: {r['svgs']} rombos y NINGUNA base encendida. "
+        f"El `scenario` no es un estado de bases."
+    )
+
+
+@pytest.mark.parametrize("analisis", CON_ROMBO)
+def test_las_bases_usan_el_mismo_naranja_que_el_resto_del_sitio(pagina, analisis):
+    """
+    El color sale del propio sitio, no se elige aparte: si un analisis pinta sus
+    bases de otro color, la tabla se lee como si dijera algo distinto.
+    """
+    _generar_re_impact(pagina, "sac_bunt")
+    referencia = set(_rombos(pagina)["colores"])
+
+    _generar_re_impact(pagina, analisis)
+    colores = set(_rombos(pagina)["colores"])
+
+    assert colores <= referencia, f"{analisis} usa colores propios: {colores - referencia}"
