@@ -10,6 +10,51 @@ from loguru import logger
 from app.config import BASE_STATE_LABELS
 
 
+def media_ponderada_por_grupo(
+    df: pd.DataFrame,
+    value_column: str,
+    groupby_columns: list[str],
+):
+    """
+    sum(valor * n) / sum(n) por grupo. La division ponderada, en UN solo sitio.
+
+    Habia CUATRO copias de estas cuatro lineas --Win Expectancy, WPA, Leverage
+    Index y las transiciones RE24-- identicas salvo en el nombre de la columna.
+    Cuatro sitios donde arreglar un fallo exige acordarse de los otros tres, y
+    donde un `.mean()` colado en uno solo pasa desapercibido: el promedio simple
+    y el ponderado se parecen lo bastante como para no chirriar.
+
+    `calculate_weighted_mean` conserva la suya y NO usa este ayudante: ademas de
+    la division arrastra `bucket_sort_order` y `sort_order_count` por la
+    agregacion, que deciden el orden de las filas en la tabla. Meterlas aqui
+    obligaria a que todos los llamantes supieran de columnas que no les tocan.
+
+    Verificado contra produccion, que corre el codigo anterior: Win Expectancy,
+    WPA y Leverage Index de 2020-2025 salen fila por fila identicos.
+
+    SIN anotacion de tipo de retorno a proposito. Declarando `-> pd.DataFrame`,
+    mypy estrecha la inferencia aguas abajo y da por inalcanzables las ramas que
+    distinguen columnas enteras de columnas de texto en los tres pivotes --las
+    que producen las cabeceras -4+, Tie y +4+--. Son alcanzables: las columnas de
+    pandas son dinamicas y ahi llevan enteros. Dejarlo sin anotar sale mas barato
+    que tres `type: ignore`.
+
+    Devuelve las columnas de agrupacion, el valor ya ponderado y `n` sumado.
+    Copia la entrada: sin eso, la columna auxiliar se le queda pegada al
+    DataFrame de quien llama, y alguno viene de la cache de datasets.
+    """
+    trabajo = df.copy()
+    trabajo["_ponderado"] = trabajo[value_column] * trabajo["n"]
+
+    agrupado = trabajo.groupby(groupby_columns, observed=False).agg(
+        _ponderado=("_ponderado", "sum"),
+        n=("n", "sum"),
+    ).reset_index()
+
+    agrupado[value_column] = agrupado["_ponderado"] / agrupado["n"]
+    return agrupado.drop(columns=["_ponderado"])
+
+
 def calculate_weighted_mean(
     df: pd.DataFrame,
     from_season: int,
@@ -1169,12 +1214,8 @@ def generate_win_expectancy_table(
     #
     # Con los datos de hoy es identico a lo anterior: un grupo de una fila da
     # sum(we*n)/sum(n) == we.
-    df["weighted_we"] = df["we"] * df["n"]
-    grouped = df.groupby(["inn_ct", "outs_ct", "runners", "runs_diff"], observed=False).agg({
-        "weighted_we": "sum",
-        "n": "sum"
-    }).reset_index()
-    grouped["we"] = grouped["weighted_we"] / grouped["n"]
+    grouped = media_ponderada_por_grupo(
+        df, "we", ["inn_ct", "outs_ct", "runners", "runs_diff"])
     result_df = grouped[["inn_ct", "outs_ct", "runners", "runs_diff", "we"]].copy()
 
     # Define custom sort order for runners using categorical type
@@ -1222,6 +1263,9 @@ def generate_win_expectancy_table(
     pivot_n_table["runners"] = pivot_n_table["runners"].map(runners_format)
 
     # Format runs_diff column labels
+    # La anotacion hace falta desde que media_ponderada_por_grupo declara su
+    # tipo de retorno: mypy afina la inferencia aguas abajo y, sin ella, da
+    # por inalcanzables las ramas de este bucle.
     new_column_labels = {}
     for col in pivot_table.columns:
         if isinstance(col, (int, np.integer)):
@@ -1343,12 +1387,8 @@ def generate_win_probability_added_table(
         result_df = df[["inn_ct", "outs_ct", "runners", "runs_diff", "wpa"]].copy()
     else:
         # Multiple seasons: calculate weighted mean
-        df["weighted_wpa"] = df["wpa"] * df["n"]
-        grouped = df.groupby(["inn_ct", "outs_ct", "runners", "runs_diff"], observed=False).agg({
-            "weighted_wpa": "sum",
-            "n": "sum"
-        }).reset_index()
-        grouped["wpa"] = grouped["weighted_wpa"] / grouped["n"]
+        grouped = media_ponderada_por_grupo(
+            df, "wpa", ["inn_ct", "outs_ct", "runners", "runs_diff"])
         result_df = grouped[["inn_ct", "outs_ct", "runners", "runs_diff", "wpa"]].copy()
 
     # Define custom sort order for runners using categorical type
@@ -1518,12 +1558,8 @@ def generate_leverage_index_table(
         result_df = df[["inn_ct", "outs_ct", "runners", "runs_diff", "li"]].copy()
     else:
         # Multiple seasons: calculate weighted mean
-        df["weighted_li"] = df["li"] * df["n"]
-        grouped = df.groupby(["inn_ct", "outs_ct", "runners", "runs_diff"], observed=False).agg({
-            "weighted_li": "sum",
-            "n": "sum"
-        }).reset_index()
-        grouped["li"] = grouped["weighted_li"] / grouped["n"]
+        grouped = media_ponderada_por_grupo(
+            df, "li", ["inn_ct", "outs_ct", "runners", "runs_diff"])
         result_df = grouped[["inn_ct", "outs_ct", "runners", "runs_diff", "li"]].copy()
 
     # Define custom sort order for runners using categorical type
@@ -1726,12 +1762,7 @@ def generate_re24_transitions_table(
         pivot_df = df[['from_runners', 'to_state', value_column]].copy()
     else:
         # Multiple seasons: calculate weighted mean
-        df["weighted_value"] = df[value_column] * df["n"]
-        grouped = df.groupby(['from_runners', 'to_state'], observed=False).agg({
-            "weighted_value": "sum",
-            "n": "sum"
-        }).reset_index()
-        grouped[value_column] = grouped["weighted_value"] / grouped["n"]
+        grouped = media_ponderada_por_grupo(df, value_column, ['from_runners', 'to_state'])
         pivot_df = grouped[['from_runners', 'to_state', value_column]].copy()
 
     # Pivot wider

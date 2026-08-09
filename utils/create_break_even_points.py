@@ -221,6 +221,36 @@ SAC_BUNT_SCENARIOS = [
     ("Runners on 1B & 2B",     "110", "011"),  # 110 → 011, outs+1
 ]
 
+# Los OCHO estados de corredores posibles. No hay mas: tres bases, ocupada o no.
+RUNNERS_CANONICOS = frozenset({"000", "100", "010", "001", "110", "101", "011", "111"})
+
+
+def _normalizar_runners(serie: pd.Series, origen: str) -> pd.Series:
+    """
+    Rellena a tres digitos y VALIDA contra el dominio canonico.
+
+    El relleno hace falta porque SQL puede devolver el estado como numero: `1`
+    es en realidad `001`, corredor en TERCERA, y sin rellenar se buscaria una
+    clave que no existe.
+
+    La validacion hace falta porque estos estados son la LLAVE de RE24 y RE288.
+    Uno mal normalizado no da error: contamina el lookup, y con el los
+    escenarios de tag-up, swing/take, platoon y vueltas al orden. El resultado
+    sale plausible y describe otra situacion de juego. Mejor abortar la
+    generacion que publicar eso.
+    """
+    salida = serie.astype(str).str.strip().str.zfill(3)
+
+    malos = sorted(set(salida) - RUNNERS_CANONICOS)
+    if malos:
+        raise ValueError(
+            f"{origen}: estados de corredores fuera del dominio canonico: "
+            f"{', '.join(malos[:10])}. Solo existen "
+            f"{', '.join(sorted(RUNNERS_CANONICOS))}."
+        )
+    return salida
+
+
 RUNNERS_LABELS = {
     "000": "Empty",
     "001": "3rd",
@@ -894,7 +924,7 @@ def calculate_tagging_breakeven(tag_df: pd.DataFrame) -> list:
     if missing:
         raise ValueError(f"Tag-up view data missing required columns: {missing}")
 
-    df["runners"] = df["runners"].astype(str).str.zfill(3)
+    df["runners"] = _normalizar_runners(df["runners"], "dbo.v_re_analysis_tag_up")
 
     pivot = df.pivot_table(
         index=["season", "outs", "runners", "direction"],
@@ -1184,7 +1214,7 @@ def calculate_swing_take_breakeven(agg_df: pd.DataFrame) -> list:
     if missing:
         raise ValueError(f"Swing/take aggregate missing required columns: {missing}")
 
-    df["runners"] = df["runners"].astype(str).str.zfill(3)
+    df["runners"] = _normalizar_runners(df["runners"], "dbo.v_re_analysis_swing_take")
 
     pivot = df.pivot_table(
         index=["season", "balls", "strikes", "outs", "runners"],
@@ -1845,7 +1875,7 @@ def _normalize_platoon_impact_view_df(df: pd.DataFrame, re_lookup: dict) -> pd.D
                 "Platoon baseline view missing baseline_avg_run_value and runners. "
                 "Provide baseline_avg_run_value in SQL view or include runners for fallback lookup."
             )
-        out["runners"] = df["runners"].astype(str).str.zfill(3)
+        out["runners"] = _normalizar_runners(df["runners"], "dbo.v_re_analysis_platoon_baseline")
         out["baseline_re"] = out.apply(
             lambda r: re_lookup.get((int(r["season"]), int(r["outs"]), str(r["runners"]))),
             axis=1,
@@ -1928,7 +1958,7 @@ def _normalize_tto_impact_view_df(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"TTO impact view data missing required columns: {missing}")
 
     out = df[["season", "runners", "handedness_split", "tto_pass", "n", "delta_run_value"]].copy()
-    out["runners"] = out["runners"].astype(str).str.zfill(3)
+    out["runners"] = _normalizar_runners(out["runners"], "dbo.v_re_analysis_tto_impact")
     out["handedness_split"] = out["handedness_split"].astype(str).str.strip()
     out["tto_pass"] = out["tto_pass"].astype(str).str.strip()
 

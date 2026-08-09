@@ -1152,3 +1152,50 @@ def test_el_pipeline_acota_swing_take_con_el_parametro(pipeline_falso, monkeypat
     be.main(data_dir=pipeline_falso)
 
     assert recibido["cap"] == _s.MAX_SEASON
+
+
+# ---------------------------------------------------------------------------
+# El dominio de los estados de corredores (CR-06-03)
+# ---------------------------------------------------------------------------
+
+def test_los_ocho_estados_canonicos_se_aceptan():
+    for estado in ("000", "100", "010", "001", "110", "101", "011", "111"):
+        assert be._normalizar_runners(pd.Series([estado]), "prueba").iloc[0] == estado
+
+
+def test_un_estado_corto_se_rellena_con_ceros():
+    """
+    Si SQL devuelve el estado como numero, `1` es en realidad `001`: corredor en
+    TERCERA. Sin el relleno se buscaria una clave que no existe.
+    """
+    assert be._normalizar_runners(pd.Series(["1"]), "prueba").iloc[0] == "001"
+
+
+def test_un_estado_que_no_existe_aborta_la_generacion():
+    """
+    Los estados de corredores son la LLAVE de RE24 y RE288. Uno mal normalizado
+    no da error: contamina el lookup, y con el los escenarios de tag-up,
+    swing/take, platoon y vueltas al orden. El resultado sale plausible y es de
+    otra situacion de juego.
+
+    Solo hay ocho estados posibles. Cualquier otra cosa es un dato roto.
+    """
+    with pytest.raises(ValueError, match="222"):
+        be._normalizar_runners(pd.Series(["100", "222"]), "v_prueba")
+
+
+def test_el_error_dice_de_que_vista_vino_el_estado_malo():
+    with pytest.raises(ValueError, match="v_re_analysis_tag_up"):
+        be._normalizar_runners(pd.Series(["999"]), "v_re_analysis_tag_up")
+
+
+def test_el_tag_up_valida_sus_estados():
+    """La validacion tiene que estar en las cuatro rutas, no solo en una."""
+    df = pd.DataFrame([
+        {"season": 2024, "outs": 1, "direction": "home", "runners": "777",
+         "bucket": b, "n": 100, "mean_rv": rv, "sd_rv": 0.2}
+        for b, rv in (("stay", 0.26), ("success", 0.43), ("fail", -0.15))
+    ])
+
+    with pytest.raises(ValueError, match="777"):
+        be.calculate_tagging_breakeven(df)

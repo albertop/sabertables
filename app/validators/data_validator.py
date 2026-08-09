@@ -46,19 +46,34 @@ def sanitize_error_message(error_msg: str, is_production: bool = False) -> str:
 def validate_dataframe_schema(
     df: pd.DataFrame,
     data_name: str,
-    required_columns: list[str]
+    required_columns: list[str],
+    allow_empty: bool = False,
 ) -> None:
     """
-    Validate that DataFrame has required columns and proper dtypes.
+    Comprueba que el DataFrame trae lo que la aplicacion necesita.
 
     Args:
-        df: DataFrame to validate
-        data_name: Name of dataset for error messages
-        required_columns: List of required column names
+        df: el DataFrame a validar
+        data_name: nombre del dataset, para el mensaje de error
+        required_columns: columnas que tienen que estar y sin nulos
+        allow_empty: si cero filas es legitimo para este dataset
 
     Raises:
-        ValueError: If validation fails
+        ValueError: si falta una columna, hay nulos, o esta vacio sin permiso
+
+    POR QUE `allow_empty` POR DEFECTO EN FALSO. Un parquet con el esquema
+    correcto y CERO filas pasaba esta validacion. El fallo aparecia despues,
+    lejos de la causa: tabla en blanco en la web, un 400 generico, o una
+    excepcion en el pivote. Y la promocion del staging no lo caza, porque
+    rechaza ficheros de cero BYTES y un parquet con esquema pesa mas que cero.
     """
+    if df.empty and not allow_empty:
+        raise ValueError(
+            f"{data_name}: el dataset viene sin filas. Un esquema correcto y cero "
+            f"filas publica una tabla en blanco sin dar ningun error; si eso es "
+            f"legitimo aqui, pasa allow_empty=True."
+        )
+
     missing_columns = set(required_columns) - set(df.columns)
     if missing_columns:
         raise ValueError(f"{data_name}: Missing required columns: {missing_columns}")

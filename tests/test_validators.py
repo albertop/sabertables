@@ -144,3 +144,38 @@ def test_lo_saneado_sigue_diciendo_que_paso():
     salida = sanitize_error_message(r'No data found in C:\app\data\re24.parquet', True)
 
     assert "No data found" in salida
+
+
+# ---------------------------------------------------------------------------
+# Datasets vacios (CR-06-02)
+# ---------------------------------------------------------------------------
+
+def _vacio():
+    return pd.DataFrame({"season": pd.Series([], dtype="int64"),
+                         "n": pd.Series([], dtype="int64")})
+
+
+def test_un_dataset_vacio_no_pasa_por_valido():
+    """
+    Cero filas con el esquema correcto pasaba la validacion. El fallo aparecia
+    despues como tabla en blanco en la web, un 400 generico o una excepcion en
+    el pivote -- lejos de la causa.
+
+    La promocion del staging rechaza ficheros de cero BYTES; un parquet con
+    esquema y cero FILAS pesa mas que cero, asi que ese filtro no lo ve.
+    """
+    with pytest.raises(ValueError, match="sin filas"):
+        validate_dataframe_schema(_vacio(), "RE24", ["season", "n"])
+
+
+def test_el_error_de_dataset_vacio_dice_cual_es():
+    with pytest.raises(ValueError, match="RE288 Frequencies"):
+        validate_dataframe_schema(_vacio(), "RE288 Frequencies", ["season"])
+
+
+def test_un_dataset_puede_declararse_vacio_a_proposito():
+    """
+    Hay tablas donde cero filas es legitimo. El llamante tiene que decirlo
+    explicitamente, para que quede escrito que fue una decision.
+    """
+    validate_dataframe_schema(_vacio(), "opcional", ["season"], allow_empty=True)

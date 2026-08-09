@@ -532,3 +532,57 @@ def test_sin_filas_AVG_el_total_suma_todas(datos):
     tabla = tg.generate_linear_weights_table(sin_avg, temporada, temporada)
 
     assert tabla["total_events"] > 0
+
+
+# ---------------------------------------------------------------------------
+# El ayudante comun de media ponderada (CR-06-07)
+# ---------------------------------------------------------------------------
+
+def test_el_ayudante_pondera_por_n():
+    """
+    Habia cuatro copias de estas cuatro lineas --WE, WPA, LI y transiciones-- y
+    ahora hay una. Este test es lo que impide que la unica se estropee: el
+    promedio simple de 0.80 y 0.90 seria 0.85; el ponderado por 100 y 300 es
+    0.875, y los dos numeros se parecen lo bastante como para no chirriar.
+    """
+    df = pd.DataFrame({
+        "grupo": ["a", "a", "b"],
+        "valor": [0.80, 0.90, 2.00],
+        "n": [100, 300, 50],
+    })
+
+    salida = tg.media_ponderada_por_grupo(df, "valor", ["grupo"]).set_index("grupo")
+
+    assert salida.loc["a", "valor"] == pytest.approx((0.80 * 100 + 0.90 * 300) / 400)
+    assert salida.loc["a", "valor"] != pytest.approx(0.85), "eso seria el promedio simple"
+
+
+def test_el_ayudante_suma_los_pesos():
+    """El n agregado alimenta los marcadores de fiabilidad de la tabla."""
+    df = pd.DataFrame({"grupo": ["a", "a"], "valor": [1.0, 2.0], "n": [10, 30]})
+
+    salida = tg.media_ponderada_por_grupo(df, "valor", ["grupo"])
+
+    assert salida["n"].iloc[0] == 40
+
+
+def test_el_ayudante_no_ensucia_el_dataframe_de_quien_llama():
+    """
+    Sin la copia, la columna auxiliar se queda pegada al DataFrame del llamante,
+    y alguno viene de la cache de datasets de la aplicacion.
+    """
+    df = pd.DataFrame({"grupo": ["a"], "valor": [1.0], "n": [10]})
+    columnas = list(df.columns)
+
+    tg.media_ponderada_por_grupo(df, "valor", ["grupo"])
+
+    assert list(df.columns) == columnas
+
+
+def test_el_ayudante_no_deja_columnas_auxiliares_en_la_salida():
+    """`_ponderado` es de uso interno; publicarla la mandaria a la tabla."""
+    df = pd.DataFrame({"grupo": ["a"], "valor": [1.0], "n": [10]})
+
+    salida = tg.media_ponderada_por_grupo(df, "valor", ["grupo"])
+
+    assert "_ponderado" not in salida.columns

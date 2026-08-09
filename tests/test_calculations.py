@@ -1157,12 +1157,24 @@ def test_el_estado_de_corredores_se_rellena_a_tres_digitos():
     assert out["label"].iloc[0] == be.RUNNERS_LABELS["000"]
 
 
-def test_un_estado_sin_etiqueta_muestra_el_codigo_y_no_un_hueco():
-    """Fallback explicito: peor que un codigo crudo es una celda vacia."""
+def test_un_estado_de_corredores_inventado_aborta():
+    """
+    CAMBIO DE COMPORTAMIENTO (CR-06-03, 8 ago 2026).
+
+    Antes un estado desconocido se mostraba crudo en la tabla, bajo la idea de
+    que un codigo raro se lee mejor que una celda vacia. Ahora aborta.
+
+    El motivo: los estados de corredores son la LLAVE de RE24 y RE288. Uno
+    inventado no se queda en su celda -- contamina el lookup, y con el los
+    escenarios de tag-up, swing/take, platoon y vueltas al orden. El resultado
+    sale plausible y describe otra situacion de juego. Ensenar "999" avisaba a
+    quien mirara esa fila; no avisaba de las demas.
+    """
     df = _tto([{"season": 2024, "runners": "999", "handedness_split": "RHP vs RHB",
                 "tto_pass": "TTO-2", "n": 100, "delta_run_value": 0.02}])
 
-    assert be._normalize_tto_impact_view_df(df)["label"].iloc[0] == "999"
+    with pytest.raises(ValueError, match="999"):
+        be._normalize_tto_impact_view_df(df)
 
 
 def test_tto_exige_sus_columnas():
