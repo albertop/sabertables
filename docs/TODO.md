@@ -2686,3 +2686,18 @@ demás; el recorte a `MIN_SEASON` lo hace el pipeline, no el SQL.
    entrada.
 2. El tipo `gidp` en `re_impact.parquet` y en las **seis** cadenas de `app.js`.
 3. Tests: los de datos, y los de navegador con la tabla pintada y el rombo.
+
+#### Publicado (9 ago 2026)
+
+`gidp` está en RE Impact como **Double Play**. 928 filas, 1910-2025.
+
+**Las seis cadenas de `app.js` no se parchearon una a una.** `gidp` tiene la misma
+forma que `sac_bunt` —filas por estado de bases, columnas de 0 y 1 out—, así que
+los seis `analysisType === 'sac_bunt'` pasaron a `escenariosPorEstadoDeBases()`,
+con un mapa único. El siguiente tipo de esta forma entra en un sitio, no en seis,
+que es la causa raíz de que las tres tablas salieran en blanco una por ronda.
+
+Eso rompió dos tests estáticos que buscaban el literal `'sac_bunt'` en cada
+cadena: daban por rotos dos tipos que funcionan. Ahora entienden el despacho
+compartido, y siguen guardando a los demás. Verificado por mutación —al quitar
+`gidp` del mapa se ponen rojos—.

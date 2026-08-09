@@ -41,7 +41,7 @@ pytestmark = pytest.mark.navegador
 
 # Los que se piden desde el desplegable de RE Impact.
 ANALISIS = ["steal_runs", "running_runs", "tagging_runs", "sac_bunt", "ibb",
-            "ph_position", "ph_pitcher", "platoon_baseline", "tto"]
+            "ph_position", "ph_pitcher", "platoon_baseline", "tto", "gidp"]
 
 
 def _puerto_libre() -> int:
@@ -207,7 +207,7 @@ def test_ningun_error_de_javascript_en_toda_la_sesion(pagina):
 
 # Los que muestran estado de bases.  SI esta desde que su estado
 # sale de BREAKEVEN_SCENARIOS.
-CON_ROMBO = ["steal_runs", "tagging_runs", "running_runs", "sac_bunt", "ibb"]
+CON_ROMBO = ["steal_runs", "tagging_runs", "running_runs", "sac_bunt", "ibb", "gidp"]
 
 
 def _bases_por_fila(pagina, selector_cuerpo: str) -> list:
@@ -356,7 +356,7 @@ def _descargar(pagina, analisis: str, formato: str):
     return info.value
 
 
-@pytest.mark.parametrize("analisis", ["steal_runs", "running_runs", "tagging_runs", "sac_bunt"])
+@pytest.mark.parametrize("analisis", ["steal_runs", "running_runs", "tagging_runs", "sac_bunt", "gidp"])
 @pytest.mark.parametrize("formato", ["csv", "json"])
 def test_el_boton_de_descarga_baja_un_fichero(pagina, analisis, formato):
     """

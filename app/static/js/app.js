@@ -2695,6 +2695,7 @@ function getDownloadConfig(tableType, data) {
 
     const reImpactTypeLabels = {
         'sac_bunt': 'Sac_Bunt',
+        'gidp': 'GIDP',
         'ibb': 'IBB',
         'ph_position': 'PH_Position',
         'ph_pitcher': 'PH_Pitcher',
@@ -3086,8 +3087,8 @@ function convertToCSV(data) {
         const metaHeaders = ['matrix_type', 'from_season', 'to_season'];
         const metaValues = [`"${data.matrix_type}"`, data.from_season ?? '', data.to_season ?? ''];
         
-        if (analysisType === 'sac_bunt') {
-            // Simple 3 scenarios x 2 outs
+        if (escenariosPorEstadoDeBases(analysisType)) {
+            // Escenario por estado de bases x 2 outs
             const headers = metaHeaders.concat(['scenario', 'display_mode', '0_outs', '1_out']);
             rows.push(headers.map(h => `"${h}"`).join(','));
             
@@ -3632,7 +3633,7 @@ function convertToJSON(data) {
             data: null
         };
         
-        if (analysisType === 'sac_bunt') {
+        if (escenariosPorEstadoDeBases(analysisType)) {
             jsonData.data = data.display_data.map(row => ({
                 scenario: row.scenario,
                 '0_outs': formatReImpactJsonValue(row.outs_0, displayMode),
@@ -5704,6 +5705,19 @@ const RE_IMPACT_RUNS_A_BREAKEVEN = {
     tagging_runs: 'tagging'
 };
 
+// Tipos cuyo `scenario` YA ES el estado de bases, con columnas 0 y 1 out. El
+// rombo sale solo porque getBaseStateSVGMarkup recibe el escenario tal cual.
+//
+// gidp son los cuatro estados CON FORZADO EN PRIMERA: sin corredor ahi la tasa
+// de doble matanza va del 0% al 2% y no hay jugada que medir.
+const ESCENARIOS_POR_ESTADO_DE_BASES = {
+    sac_bunt: ['100', '010', '110'],
+    gidp:     ['100', '101', '110', '111']
+};
+function escenariosPorEstadoDeBases(analysisType) {
+    return ESCENARIOS_POR_ESTADO_DE_BASES[analysisType] || null;
+}
+
 function escenariosDeImpactoEnCarreras(analysisType) {
     const familia = RE_IMPACT_RUNS_A_BREAKEVEN[analysisType];
     return familia ? BREAKEVEN_SCENARIOS[familia] : null;
@@ -6998,7 +7012,7 @@ function renderReImpactPage() {
     const matchesAnalysisType = (row) => {
         // Backend already filters by analysis_type and may omit the type column.
         if (row.type === undefined || row.type === null) return true;
-        if (analysisType === 'sac_bunt') return row.type === 'sac_bunt';
+        if (escenariosPorEstadoDeBases(analysisType)) return row.type === analysisType;
         if (analysisType === 'ibb') return row.type === 'ibb';
         if (analysisType === 'ph_position') return row.type === 'ph_position' || row.type === 'ph';
         if (analysisType === 'ph_pitcher') return row.type === 'ph_pitcher' || row.type === 'ph';
@@ -7022,7 +7036,7 @@ function renderReImpactPage() {
     filteredData.forEach(row => {
         // Build key based on analysis type (some have platoon, some don't)
         let key;
-        if (analysisType === 'sac_bunt') {
+        if (escenariosPorEstadoDeBases(analysisType)) {
             key = `${row.scenario}|${row.outs}`;
         } else if (analysisType === 'ibb') {
             key = `${row.scenario}|${row.outs}`;
@@ -7147,8 +7161,8 @@ function renderReImpactPage() {
                 outs_2_n: outs2 ? outs2.n : 0
             });
         });
-    } else if (analysisType === 'sac_bunt') {
-        const scenarios = ['100', '010', '110'];  // Fixed: 010 not 020
+    } else if (escenariosPorEstadoDeBases(analysisType)) {
+        const scenarios = escenariosPorEstadoDeBases(analysisType);
         scenarios.forEach(scenario => {
             const outs0 = displayData.find(d => d.scenario === scenario && d.outs === 0);
             const outs1 = displayData.find(d => d.scenario === scenario && d.outs === 1);
@@ -7385,6 +7399,7 @@ function renderReImpactPage() {
     // Build title
     const analysisTypeLabel = {
         'sac_bunt': 'Sacrifice Bunt',
+        'gidp': 'Double Play',
         'ibb': 'Intentional Walk',
         'ph_position': 'PH for Position Player',
         'ph_pitcher': 'PH for Pitchers',
@@ -7396,6 +7411,7 @@ function renderReImpactPage() {
     }[analysisType] || analysisType;
     const analysisTypeFooterLabel = {
         'sac_bunt': 'sacrifice bunt',
+        'gidp': 'double play',
         'ibb': 'intentional walk',
         'ph_position': 'PH for position player',
         'ph_pitcher': 'PH for pitchers',
@@ -7422,6 +7438,7 @@ function renderReImpactPage() {
             // RE24, condicionada a que el toque salga. De ahi "successful" y la
             // ausencia de "usually".
             'sac_bunt': 'How many runs your team loses when executing a successful sacrifice bunt.',
+            'gidp': 'How many runs a double play costs compared with a comparable ground out that retires only one runner.',
             'ibb': 'How many runs your team usually gains or loses when choosing to intentionally walk a batter.',
             'ph_position': 'What pinch-hitting for a position player is usually worth, by handedness matchup and outs.',
             'ph_pitcher': 'What pinch-hitting for the pitcher is usually worth, by handedness matchup and outs.',
@@ -7437,7 +7454,7 @@ function renderReImpactPage() {
     setBreakevenFooterText(eventCountEl, `${totalEvents.toLocaleString()} ${analysisTypeFooterLabel} events processed`);
     
     // Build table based on analysis type
-    if (analysisType === 'sac_bunt') {
+    if (escenariosPorEstadoDeBases(analysisType)) {
         renderReImpactSacBuntTable(headEl, bodyEl, pivotedData, stored.display_mode, reliabilityStats);
     } else if (analysisType === 'ibb') {
         renderReImpactIbbTable(headEl, bodyEl, pivotedData, stored.display_mode, reliabilityStats);
@@ -7660,7 +7677,7 @@ function renderMetricCellWithReliability(value, nValue, {
 
 function buildReImpactReliabilityStats(displayData, analysisType) {
     return buildReliabilityStats(displayData, (row) => {
-        if (analysisType === 'sac_bunt') {
+        if (escenariosPorEstadoDeBases(analysisType)) {
             return [row.outs_0_n, row.outs_1_n];
         }
         if (analysisType === 'ibb') {

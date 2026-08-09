@@ -1436,6 +1436,25 @@ def test_el_selector_declara_analisis():
     assert len(_tipos_del_selector()) >= 9
 
 
+def _cubierto(tipo: str, tramo: str) -> bool:
+    """
+    Un tipo esta cubierto si aparece por su nombre EN EL TRAMO, o si el tramo
+    despacha por el mapa de escenarios por estado de bases y el tipo esta en ese
+    mapa.
+
+    Hizo falta cuando `gidp` y `sac_bunt` dejaron de tener cada uno su
+    `analysisType === '...'` y pasaron a compartir una sola rama: tienen la misma
+    forma de tabla, asi que duplicar las seis cadenas era pedir que la proxima vez
+    se olvidara una. Buscar el literal daba dos tipos rotos que funcionan.
+    """
+    if f"'{tipo}'" in tramo:
+        return True
+    if "escenariosPorEstadoDeBases(analysisType)" not in tramo:
+        return False
+    mapa = _js().split("const ESCENARIOS_POR_ESTADO_DE_BASES", 1)[1].split("};", 1)[0]
+    return f"{tipo}:" in mapa
+
+
 @pytest.mark.parametrize("tipo", _tipos_del_selector())
 def test_cada_analisis_tiene_clave_de_pivote(tipo):
     """
@@ -1448,7 +1467,7 @@ def test_cada_analisis_tiene_clave_de_pivote(tipo):
     js = _js()
     pivote = js.split("// Build key based on analysis type", 1)[1].split("if (!aggregated[key])", 1)[0]
 
-    assert f"'{tipo}'" in pivote, (
+    assert _cubierto(tipo, pivote), (
         f"{tipo} no tiene rama en la clave del pivote: su tabla saldra en blanco"
     )
 
@@ -1461,7 +1480,7 @@ def test_cada_analisis_tiene_filtro_de_filas(tipo):
     # temprano y cortar ahi dejaba fuera toda la cadena de tipos.
     filtro = js.split("const matchesAnalysisType", 1)[1].split(chr(10) + "    };", 1)[0]
 
-    assert f"'{tipo}'" in filtro, f"{tipo} no se filtra: mostraria filas de otros analisis"
+    assert _cubierto(tipo, filtro), f"{tipo} no se filtra: mostraria filas de otros analisis"
 
 
 @pytest.mark.parametrize("tipo", _tipos_del_selector())
