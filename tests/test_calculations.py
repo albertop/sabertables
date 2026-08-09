@@ -1947,3 +1947,125 @@ def test_el_signo_sigue_la_convencion_de_re_impact():
     malo = be.impacto_en_carreras(quedarse=0.50, exito=0.55, fallo=-0.40, p_exito=0.40)
 
     assert malo["delta_re"] < 0
+
+
+# ---------------------------------------------------------------------------
+# Estirar el batazo y tag-up, en carreras
+# ---------------------------------------------------------------------------
+
+def _cubos(direccion="double", cubo_quedarse="stop", **extra):
+    return pd.DataFrame([
+        {"season": 2024, "outs": 1, "direction": direccion, "bucket": b,
+         "n": n, "mean_rv": rv, "sd_rv": 0.2, **extra}
+        for b, (n, rv) in {cubo_quedarse: (500, 0.26), "success": (300, 0.43),
+                           "fail": (40, -0.15)}.items()
+    ])
+
+
+def test_estirar_el_batazo_en_carreras_usa_su_propia_tasa():
+    """
+    Aqui no hace falta vista nueva: los cubos de la vista ya traen su `n`, asi
+    que la tasa observada es n_success / (n_success + n_fail).
+    """
+    filas = be.calculate_running_impact(_cubos())
+
+    assert len(filas) == 1
+    fila = filas[0]
+    p = 300 / 340
+    assert fila["delta_re"] == pytest.approx(p * (0.43 - 0.26) - (1 - p) * (0.26 - -0.15))
+    assert fila["type"] == "running_runs"
+
+
+def test_estirar_el_batazo_publica_los_intentos_como_n():
+    """
+    Exitos mas fallos. El break-even publica solo los 40 fallos, porque dominan
+    su varianza; esta tabla mide el valor esperado y su muestra son los intentos.
+    """
+    fila = be.calculate_running_impact(_cubos())[0]
+
+    assert fila["n"] == 340
+
+
+def test_el_tag_up_en_carreras_usa_el_cubo_de_quedarse():
+    """
+    En tag-up el cubo se llama `stay`, no `stop`: quedarse quieto en tercera no
+    es lo mismo que frenar al doblar primera.
+    """
+    df = _cubos(direccion="home", cubo_quedarse="stay", runners="001")
+
+    filas = be.calculate_tagging_impact(df)
+
+    assert len(filas) == 1
+    assert filas[0]["type"] == "tagging_runs"
+    assert filas[0]["n"] == 340
+
+
+def test_las_dos_tablas_cuadran_por_la_identidad():
+    """
+    EL INVARIANTE QUE UNE LAS DOS VISTAS:  BE = coste / (ganancia + coste)
+
+    El break-even y las carreras salen de los mismos tres numeros. Si esto deja
+    de cumplirse, una de las dos esta mal y el sitio publicaria dos respuestas
+    incompatibles a la misma pregunta.
+    """
+    df = _cubos()
+
+    umbral = be.calculate_running_breakeven(df)[0]["breakeven_pct"]
+    carreras = be.calculate_running_impact(df)[0]
+
+    reconstruido = carreras["cost_runs"] / (carreras["gain_runs"] + carreras["cost_runs"])
+    assert reconstruido == pytest.approx(umbral)
+
+
+def test_sin_los_tres_cubos_no_hay_carreras_que_publicar():
+    """Misma condicion que el break-even: sin fallos observados no hay nada."""
+    parcial = pd.DataFrame([
+        {"season": 2024, "outs": 1, "direction": "double", "bucket": b,
+         "n": 100, "mean_rv": rv, "sd_rv": 0.2}
+        for b, rv in (("stop", 0.26), ("success", 0.43))
+    ])
+
+    assert be.calculate_running_impact(parcial) == []
+
+
+def test_las_etiquetas_son_las_mismas_que_en_break_even():
+    """
+    Es lo que permite cruzar las dos tablas. Si divergen, el usuario ve dos
+    nombres distintos para la misma jugada.
+    """
+    df = _cubos()
+
+    umbral = be.calculate_running_breakeven(df)[0]
+    carreras = be.calculate_running_impact(df)[0]
+
+    assert carreras["scenario"] == umbral["scenario"]
+
+
+def test_el_tag_up_distingue_anotar_de_avanzar_a_tercera_tambien_en_carreras():
+    """
+    Son dos jugadas distintas: el de tercera que anota y el de segunda que
+    avanza. La etiqueta es lo unico que las separa en la tabla, y tiene que
+    coincidir con la del break-even para poder cruzarlas.
+    """
+    anota = be.calculate_tagging_impact(
+        _cubos(direccion="home", cubo_quedarse="stay", runners="001"))
+    avanza = be.calculate_tagging_impact(
+        _cubos(direccion="third", cubo_quedarse="stay", runners="010"))
+
+    assert "score" in anota[0]["scenario"]
+    assert "3B" in avanza[0]["scenario"]
+    assert anota[0]["scenario"] != avanza[0]["scenario"]
+
+
+def test_una_celda_sin_un_solo_intento_no_se_publica():
+    """
+    Sin intentos no hay tasa que calcular --seria una division por cero-- y la
+    celda no dice nada sobre la decision.
+    """
+    df = pd.DataFrame([
+        {"season": 2024, "outs": 1, "direction": "double", "bucket": b,
+         "n": 0, "mean_rv": rv, "sd_rv": 0.2}
+        for b, rv in (("stop", 0.26), ("success", 0.43), ("fail", -0.15))
+    ])
+
+    assert be.calculate_running_impact(df) == []

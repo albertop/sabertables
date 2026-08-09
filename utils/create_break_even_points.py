@@ -842,6 +842,98 @@ LABELS_RUNNING = {
 }
 
 
+def _impacto_desde_cubos(df, cubo_quedarse: str, indice: list,
+                        tipo: str, etiqueta_de, origen: str) -> list:
+    """
+    Convierte una vista de tres cubos en filas de impacto en CARRERAS.
+
+    Comun a estirar el batazo y a tag-up: las dos vistas tienen la misma forma
+    --un cubo por desenlace, con su media y su n-- y solo cambian el nombre del
+    cubo de quedarse (`stop` frente a `stay`) y como se arma la etiqueta.
+
+    La tasa observada sale de los propios cubos, `n_success / (n_success +
+    n_fail)`, asi que aqui NO hace falta ninguna vista nueva: al robo si, porque
+    su break-even se calcula solo con la matriz RE24 y no sabe cuantas veces se
+    intento.
+
+    El `n` publicado son los INTENTOS. El break-even publica solo los fallos,
+    porque son el termino que domina su varianza; esta tabla mide el valor
+    esperado y su muestra es otra.
+    """
+    df = df.copy()
+    df.columns = [str(c).lower() for c in df.columns]
+
+    pivot = df.pivot_table(index=indice, columns="bucket",
+                           values=["n", "mean_rv"], aggfunc="first").reset_index()
+    pivot.columns = ["_".join(c).strip("_") if c[1] else c[0] for c in pivot.columns]
+
+    for col in (f"mean_rv_{cubo_quedarse}", "mean_rv_success", "mean_rv_fail",
+                f"n_{cubo_quedarse}", "n_success", "n_fail"):
+        if col not in pivot.columns:
+            pivot[col] = pd.NA
+
+    # Sin los tres desenlaces no hay nada que calcular, igual que en el
+    # break-even: no es que sea poco fiable, es que no existe.
+    pivot = pivot.dropna(subset=[f"mean_rv_{cubo_quedarse}", "mean_rv_success",
+                                 "mean_rv_fail", "n_success", "n_fail"]).copy()
+
+    rows = []
+    for _, row in pivot.iterrows():
+        intentos = int(row["n_success"]) + int(row["n_fail"])
+        if intentos == 0:
+            continue
+
+        carreras = impacto_en_carreras(
+            quedarse=float(row[f"mean_rv_{cubo_quedarse}"]),
+            exito=float(row["mean_rv_success"]),
+            fallo=float(row["mean_rv_fail"]),
+            p_exito=int(row["n_success"]) / intentos,
+        )
+        etiqueta = etiqueta_de(row)
+        rows.append({
+            "season": int(row["season"]),
+            "type": tipo,
+            "scenario": etiqueta,
+            "label": etiqueta,
+            "outs": int(row["outs"]),
+            "delta_re": carreras["delta_re"],
+            "gain_runs": carreras["gain_runs"],
+            "cost_runs": carreras["cost_runs"],
+            "n": intentos,
+        })
+
+    log.info(f"  {origen}: {len(rows):,} filas de impacto en carreras")
+    return rows
+
+
+def calculate_running_impact(stretch_df: pd.DataFrame) -> list:
+    """Estirar el batazo, en carreras. Mismas etiquetas que el break-even."""
+    return _impacto_desde_cubos(
+        stretch_df, "stop", ["season", "outs", "direction"], "running_runs",
+        lambda row: LABELS_RUNNING.get(row["direction"], row["direction"]),
+        "Running",
+    )
+
+
+def calculate_tagging_impact(tag_df: pd.DataFrame) -> list:
+    """
+    Tag-up, en carreras.
+
+    El cubo de quedarse se llama `stay` aqui y `stop` en estirar el batazo: no
+    es lo mismo quedarse quieto en tercera que frenar al doblar primera.
+    """
+    def etiqueta(row):
+        estado = RUNNERS_LABELS.get(str(row["runners"]), str(row["runners"]))
+        if row["direction"] == "home":
+            return f"Runner on 3B tags up to score ({estado})"
+        return f"Runner on 2B tags up to 3B ({estado})"
+
+    return _impacto_desde_cubos(
+        tag_df, "stay", ["season", "outs", "runners", "direction"], "tagging_runs",
+        etiqueta, "Tag-up",
+    )
+
+
 def calculate_advance_breakeven(adv_df: pd.DataFrame) -> list:
     """
     Break-even de un corredor ya en base tomando una base de mas en un batazo.
