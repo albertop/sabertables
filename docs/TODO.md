@@ -2149,6 +2149,98 @@ menciona www.
 
 ---
 
+## 10. Llevar robo, avance y tag-up a RE Impact, en carreras (9 ago 2026)
+
+**Petición.** Los tres análisis de Break-Even Points que hoy se presentan como
+porcentaje —Stolen Bases, Base Running y Tag-up— pasar a mostrarlos también en
+**RE Impact Analysis**, expresados en **carreras**.
+
+### 10.1 Por qué merece la pena
+
+**El break-even tira la magnitud.** BE responde "¿qué tasa de éxito necesito?" y
+es adimensional: dos celdas con BE = 0.70 pueden estar arriesgando 0,05 carreras
+o 0,5. La tabla actual no distingue una decisión que casi da igual de una que
+decide el partido. La vista en carreras devuelve justo eso.
+
+**No es un análisis nuevo, es la otra mitad del que ya hay.** Los dos salen de
+los mismos tres números:
+
+    ganancia = RE_exito  − RE_quedarse
+    coste    = RE_quedarse − RE_fallo
+    BE       = coste / (ganancia + coste)
+
+O sea que BE ya está calculado *a partir de* las carreras; simplemente no se
+publican. No hay que medir nada nuevo.
+
+**Efecto secundario bueno: los colores se unifican.** El heatmap de RE Impact usa
+azul para ganancia y rojo para pérdida; el de break-even va al revés, porque un
+BE alto es malo. Presentarlo en carreras hace que la regla sea la misma en las
+dos familias, que es una de las cosas que más confunde hoy.
+
+### 10.2 La asimetría que condiciona el diseño
+
+**Los tres análisis NO están en la misma situación**, y esto es lo que hay que
+decidir antes de escribir código:
+
+| análisis | ¿tiene tasa de éxito observada? |
+|---|---|
+| **Base Running** | **Sí.** La vista `_stretch` trae los cubos `stop`/`success`/`fail` con su `n` cada uno |
+| **Tag-up** | **Sí.** Igual, con `stay`/`success`/`fail` |
+| **Stolen Bases** | **No.** Su BE se calcula solo con la matriz RE24; el `n` publicado es la frecuencia del estado de partida, no intentos de robo |
+
+Con tasa observada se puede publicar lo que de verdad interesa: el **valor
+esperado neto de intentarlo**, `p·ganancia − (1−p)·coste`, que es directamente
+comparable con el `delta_re` del toque de sacrificio y de la base intencional.
+
+Sin ella —el robo— solo se pueden publicar ganancia y coste por separado. Hay
+dos salidas:
+
+1. **Publicar el robo solo con ganancia y coste**, y las otras dos además con el
+   neto. Barato, pero la tabla queda desigual.
+2. **Añadir los conteos reales de SB y CS**, que están en Retrosheet
+   (`event_cd` 4 = robo, 6 = atrapado). Una vista nueva y los tres quedan
+   iguales. Es lo que haría, pero es trabajo extra en SQL.
+
+### 10.3 Dos avisos
+
+- **El `n` no se puede copiar tal cual.** Los break-even publican `n_fail`, los
+  fallos observados, porque es el término que domina la varianza. Una tabla en
+  carreras quiere los **intentos totales** como tamaño de muestra. Son
+  denominadores distintos y mezclarlos daría marcadores de fiabilidad que
+  describen otra cosa.
+- **El signo.** RE Impact usa negativo = cuesta carreras (el sacrificio sale
+  negativo). Ganancia y coste deben seguir esa convención o las dos familias se
+  leerán al revés.
+
+### 10.4 Plan
+
+**Paso 1 — decidir el alcance del robo.** Opción 1 (rápida, tabla desigual) u
+opción 2 (vista nueva con SB/CS, los tres iguales). Es lo único que bloquea.
+
+**Paso 2 — pipeline.** En `create_break_even_points.py`, junto al cálculo de cada
+break-even que ya existe, emitir además filas de impacto con
+`type` = `steal_runs` / `running_runs` / `tagging_runs` y las columnas
+`delta_re` (el neto, o la ganancia si no hay tasa), más ganancia y coste. Se
+escriben en `re_impact.parquet`, que ya tiene el esquema y las columnas
+opcionales.
+
+**Paso 3 — backend.** Añadir los tres a `analysis_type` de `RE_IMPACT`. El
+patrón de Pydantic ya enumera los tipos; hay un test que lo vigila.
+
+**Paso 4 — frontend.** Tres entradas nuevas en el selector de RE Impact, con su
+nota metodológica. El heatmap no necesita nada: la regla de color de RE Impact ya
+es la correcta para carreras.
+
+**Paso 5 — tests.** La identidad `BE = coste / (ganancia + coste)` es un
+invariante precioso: **las dos tablas tienen que cuadrar**. Un test que recalcule
+el BE desde las carreras publicadas y lo compare con el de `breakeven_points`
+detecta cualquier divergencia entre las dos vistas del mismo número.
+
+**Qué NO cambia:** la tabla de Break-Even Points se queda como está. Son dos
+lecturas de lo mismo y las dos tienen público: "¿qué tasa necesito?" y "¿cuánto
+me juego?".
+
+---
 ## 9. Revisiones externas v06 y v07 — validadas el 8 ago 2026
 
 **Las dos son revisiones nuevas de verdad**, a diferencia de la v03 y la v05, que
