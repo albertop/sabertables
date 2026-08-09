@@ -7131,7 +7131,13 @@ function renderReImpactPage() {
                 // El rombo del campo se dibuja con esto. Sin `runners` sale
                 // apagado, con la tabla llena de numeros correctos.
                 runners: definido ? definido.runners : undefined,
-                label: definido ? definido.label
+                // La CLAVE, no `label`: en tag-up el label es corto a proposito
+                // y cuatro escenarios distintos se llaman igual --"Runner on 3B
+                // tags up to score"-- porque el rombo los separa. Break-Even
+                // ensena la clave con su sufijo ((3rd), (Loaded)...), y es la
+                // referencia. Con el label suelto, la tabla de RE Impact salia
+                // con cuatro filas de texto identico.
+                label: definido ? definido.key
                        : (outs0?.label || outs1?.label || outs2?.label || scenario),
                 outs_0: outs0 ? outs0.delta_re : null,
                 outs_1: outs1 ? outs1.delta_re : null,

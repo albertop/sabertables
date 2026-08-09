@@ -34,8 +34,8 @@ import pytest
 import uvicorn
 
 pytest.importorskip("playwright", reason="hace falta playwright para el render")
-from playwright.sync_api import TimeoutError as PlaywrightTimeout  # noqa: E402
-from playwright.sync_api import sync_playwright  # noqa: E402
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
+from playwright.sync_api import sync_playwright
 
 pytestmark = pytest.mark.navegador
 
@@ -218,7 +218,7 @@ def _bases_por_fila(pagina, selector_cuerpo: str) -> list:
     las dibuja: primera, segunda, tercera.
     """
     return pagina.evaluate(
-        """(sel) => {
+        r"""(sel) => {
             return Array.from(document.querySelectorAll(sel + ' tr')).map(tr => {
                 const svg = tr.querySelector('svg');
                 const bases = svg ? Array.from(svg.querySelectorAll('rect')).map(
@@ -277,7 +277,9 @@ def test_las_dos_tablas_ensenan_LOS_MISMOS_escenarios(pagina, familia, analisis)
             Array.from(document.querySelectorAll('button'))
                  .filter(b => /generate/i.test(b.textContent))[0].click();
             await new Promise(r => setTimeout(r, 3200));
-            return document.querySelectorAll('#re-impact-table-body tr').length;
+            return Array.from(document.querySelectorAll('#re-impact-table-body tr'))
+                        .map(tr => (tr.querySelector('th, td')?.textContent || '')
+                                   .replace(/\\s+/g, ' ').trim());
         }""",
         analisis,
     )
@@ -292,14 +294,24 @@ def test_las_dos_tablas_ensenan_LOS_MISMOS_escenarios(pagina, familia, analisis)
             Array.from(document.querySelectorAll('button'))
                  .filter(b => /generate/i.test(b.textContent))[0].click();
             await new Promise(r => setTimeout(r, 3200));
-            return document.querySelectorAll('#sb-breakeven-table-body tr').length;
+            return Array.from(document.querySelectorAll('#sb-breakeven-table-body tr'))
+                        .map(tr => (tr.querySelector('th, td')?.textContent || '')
+                                   .replace(/\\s+/g, ' ').trim());
         }""",
         familia,
     )
 
+    assert len(impacto) == len(umbral), (
+        f"{familia}: Break-Even ensena {len(umbral)} filas y RE Impact "
+        f"{len(impacto)}. Son el mismo calculo; una de las dos esta incompleta."
+    )
+
+    # Y con el MISMO TEXTO. Contar filas no basta: tag-up tenia 6 y 6, pero RE
+    # Impact ensenaba cuatro filas llamadas "Runner on 3B tags up to score",
+    # indistinguibles entre si, donde Break-Even pone el sufijo que las separa.
     assert impacto == umbral, (
-        f"{familia}: Break-Even ensena {umbral} filas y RE Impact {impacto}. "
-        f"Son el mismo calculo; una de las dos esta incompleta."
+        f"{familia}: las dos tablas tienen {len(umbral)} filas pero no dicen lo "
+        f"mismo.\n  Break-Even: {umbral}\n  RE Impact:  {impacto}"
     )
 
 
