@@ -11,7 +11,7 @@ services:
     # aqui (ver docs/OPERACION_ANUAL.md paso 7), asi que este fichero es plantilla y
     # se desactualiza solo. Al publicar una version nueva conviene subirla tambien
     # aqui, o al menos no dejar un numero que enganie a quien lo lea.
-    image: sabertables:1.2025.34
+    image: sabertables:1.2025.35
     container_name: sabertables.com
     # Atado a 127.0.0.1 y NO a todas las interfaces.
     #
