@@ -34,6 +34,7 @@ import pytest
 import uvicorn
 
 pytest.importorskip("playwright", reason="hace falta playwright para el render")
+from playwright.sync_api import TimeoutError as PlaywrightTimeout  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 
 pytestmark = pytest.mark.navegador
@@ -316,25 +317,30 @@ def _descargar(pagina, analisis: str, formato: str):
     """
     _generar_re_impact(pagina, analisis)
 
-    pagina.evaluate(
-        """(formato) => {
-            const sel = document.querySelector('#re-impact-format-select, [id*="re-impact"][id*="format"]')
-                     || Array.from(document.querySelectorAll('select'))
-                        .find(s => Array.from(s.options).some(o => o.value === 'csv'));
-            if (sel) { sel.value = formato; sel.dispatchEvent(new Event('change', {bubbles: true})); }
-        }""",
-        formato,
-    )
+    # Los identificadores REALES, mirados en la pagina. Los que puse a ojo
+    # ('#re-impact-download-btn') no existen, y el respaldo por texto pulsaba
+    # cualquier boton: el test moria en un timeout mudo que no decia nada.
+    pagina.select_option("#re-impact-format-select", formato)
 
-    with pagina.expect_download(timeout=15000) as info:
-        pagina.evaluate(
-            """() => {
-                const btn = document.querySelector('#re-impact-download-btn')
-                         || Array.from(document.querySelectorAll('button, a'))
-                            .find(b => /download/i.test(b.textContent) && b.offsetParent !== null);
-                btn.click();
-            }"""
+    boton = pagina.locator("#download-re-impact-btn")
+    assert boton.count() == 1, "no existe #download-re-impact-btn"
+    boton.wait_for(state="visible", timeout=10000)
+
+    try:
+        with pagina.expect_download(timeout=15000) as info:
+            boton.click()
+    except PlaywrightTimeout:
+        # handleDownload avisa por el banner cuando no logra armar el fichero.
+        # Sin esto el fallo se lee como "Playwright no vio la descarga" en vez
+        # de como lo que es: el generador no produjo contenido.
+        banner = pagina.evaluate(
+            "() => Array.from(document.querySelectorAll('.error-message, #error-message, [class*=error]'))"
+            ".map(e => e.textContent.trim()).filter(Boolean).join(' | ')"
         )
+        raise AssertionError(
+            f"{analisis}/{formato}: se pulso el boton y NO bajo ningun fichero. "
+            f"Banner de error en pantalla: {banner or '(ninguno)'}"
+        ) from None
     return info.value
 
 
@@ -357,7 +363,12 @@ def test_el_boton_de_descarga_baja_un_fichero(pagina, analisis, formato):
     assert d.suggested_filename.endswith(f".{formato}"), d.suggested_filename
 
     if formato == "json":
-        _json.loads(contenido)          # revienta si no es JSON valido
+        # El JSON lleva metadatos ademas de los datos, asi que "no viene vacio"
+        # lo cumple un fichero SIN NI UNA FILA. Verificado por mutacion: con el
+        # generador devolviendo cero filas, este test pasaba mudo y solo el CSV
+        # se ponia rojo. Hay que mirar dentro.
+        cargado = _json.loads(contenido)
+        assert cargado.get("data"), f"{analisis}: el JSON no trae ni una fila"
     else:
         assert contenido.count("\n") >= 2, "un CSV con cabecera y sin filas"
 

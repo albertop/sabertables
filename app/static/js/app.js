@@ -3119,6 +3119,29 @@ function convertToCSV(data) {
                 ];
                 rows.push(values.join(','));
             });
+        } else if (escenariosDeImpactoEnCarreras(analysisType)) {
+            // Misma forma que ibb: escenario por filas, tres estados de outs.
+            //
+            // ESTA ES LA SEXTA CADENA por tipo. Sin esta rama el generador no
+            // anade NINGUNA fila, el fichero sale vacio y el navegador no llega
+            // a disparar la descarga: el boton no hace nada, sin error en
+            // consola y sin excepcion. Por eso hay un test que PULSA el boton y
+            // espera el evento de descarga -- comprobar que el tipo existe en
+            // los mapas no prueba que baje un fichero.
+            const headers = metaHeaders.concat(['scenario', 'display_mode', '0_outs', '1_out', '2_outs']);
+            rows.push(headers.map(h => `"${h}"`).join(','));
+
+            filasDeImpactoEnCarreras(data).forEach(row => {
+                const values = [
+                    ...metaValues,
+                    quoteCsvString(row.scenario),
+                    `"${displayMode}"`,
+                    formatReImpactCsvValue(row.outs_0, displayMode),
+                    formatReImpactCsvValue(row.outs_1, displayMode),
+                    formatReImpactCsvValue(row.outs_2, displayMode)
+                ];
+                rows.push(values.join(','));
+            });
         } else if (analysisType === 'ph_position' || analysisType === 'ph_pitcher') {
             const headers = metaHeaders.concat(['pitcher_batter_matchup', 'display_mode', '0_outs', '1_out', '2_outs']);
             rows.push(headers.map(h => `"${h}"`).join(','));
@@ -3617,6 +3640,13 @@ function convertToJSON(data) {
             }));
         } else if (analysisType === 'ibb') {
             jsonData.data = data.display_data.map(row => ({
+                scenario: row.scenario,
+                '0_outs': formatReImpactJsonValue(row.outs_0, displayMode),
+                '1_out': formatReImpactJsonValue(row.outs_1, displayMode),
+                '2_outs': formatReImpactJsonValue(row.outs_2, displayMode)
+            }));
+        } else if (escenariosDeImpactoEnCarreras(analysisType)) {
+            jsonData.data = filasDeImpactoEnCarreras(data).map(row => ({
                 scenario: row.scenario,
                 '0_outs': formatReImpactJsonValue(row.outs_0, displayMode),
                 '1_out': formatReImpactJsonValue(row.outs_1, displayMode),
@@ -5677,6 +5707,16 @@ const RE_IMPACT_RUNS_A_BREAKEVEN = {
 function escenariosDeImpactoEnCarreras(analysisType) {
     const familia = RE_IMPACT_RUNS_A_BREAKEVEN[analysisType];
     return familia ? BREAKEVEN_SCENARIOS[familia] : null;
+}
+
+// Las filas que se DESCARGAN son las que se VEN: mismo conjunto y mismo orden
+// que la tabla, que los toma de BREAKEVEN_SCENARIOS. Recorrer display_data a
+// pelo daria un CSV que no cuadra con la pantalla.
+function filasDeImpactoEnCarreras(data) {
+    const escenarios = escenariosDeImpactoEnCarreras(data.analysis_type);
+    if (!escenarios) return [];
+    const porEscenario = new Map((data.display_data || []).map(r => [r.scenario, r]));
+    return escenarios.map(e => porEscenario.get(e.key)).filter(Boolean);
 }
 
 const BREAKEVEN_SCENARIOS = {
