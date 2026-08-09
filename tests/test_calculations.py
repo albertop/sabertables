@@ -2052,13 +2052,12 @@ def test_el_tag_up_distingue_anotar_de_avanzar_a_tercera_tambien_en_carreras():
     avanza = be.calculate_tagging_impact(
         _cubos(direccion="third", cubo_quedarse="stay", runners="010"))
 
-    # El texto vive en `label`; `scenario` lleva el ESTADO DE BASES, que es lo
-    # que la tabla usa para dibujar el rombo del campo con las bases ocupadas.
-    assert "score" in anota[0]["label"]
-    assert "3B" in avanza[0]["label"]
-    assert anota[0]["label"] != avanza[0]["label"]
-    assert anota[0]["scenario"] == "001", "corredor en tercera"
-    assert avanza[0]["scenario"] == "010", "corredor en segunda"
+    # `scenario` es el TEXTO, igual que en breakeven_points: es lo que permite
+    # cruzar las dos tablas. El estado de bases para el rombo lo pone el
+    # frontend desde BREAKEVEN_SCENARIOS.
+    assert "score" in anota[0]["scenario"]
+    assert "3B" in avanza[0]["scenario"]
+    assert anota[0]["scenario"] != avanza[0]["scenario"]
 
 
 def test_una_celda_sin_un_solo_intento_no_se_publica():

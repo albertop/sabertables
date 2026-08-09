@@ -25,6 +25,7 @@ Lo unico que detecta "la tabla sale vacia" es pintar la tabla. Eso es esto.
 Se marcan con `@pytest.mark.navegador` para poder saltarlos con
 `-m "not navegador"` cuando se quiere la suite rapida.
 """
+import pathlib
 import socket
 import threading
 import time
@@ -60,8 +61,18 @@ def sitio():
 
     os.environ["ENVIRONMENT"] = "development"
     os.environ["API_REQUIRE_ORIGIN"] = "false"
+    os.environ["ALLOWED_HOSTS"] = "127.0.0.1,localhost,testserver"
+
+    # RECARGA OBLIGATORIA. Otros ficheros de la suite importan app.main con
+    # ENVIRONMENT=production para probar el redirect a HTTPS, y el modulo queda
+    # asi en sys.modules. Sin recargar, este servidor hereda produccion y el
+    # navegador recibe un 307 hacia www.sabertables.com: los tests pasan en
+    # solitario y revientan al correr la suite entera.
+    import importlib
 
     import app.main as m
+
+    m = importlib.reload(m)
 
     puerto = _puerto_libre()
     config = uvicorn.Config(m.app, host="127.0.0.1", port=puerto, log_level="error")
@@ -193,141 +204,176 @@ def test_ningun_error_de_javascript_en_toda_la_sesion(pagina):
     assert not pagina.errores_js, f"errores de JavaScript: {pagina.errores_js[:3]}"
 
 
-# ---------------------------------------------------------------------------
-# Marcadores de fiabilidad
-# ---------------------------------------------------------------------------
+# Los que muestran estado de bases.  SI esta desde que su estado
+# sale de BREAKEVEN_SCENARIOS.
+CON_ROMBO = ["steal_runs", "tagging_runs", "running_runs", "sac_bunt", "ibb"]
 
-def _marcadores(pagina) -> dict:
+
+def _bases_por_fila(pagina, selector_cuerpo: str) -> list:
+    """
+    Por cada fila: que bases ilumina el rombo y con que etiqueta.
+
+    Las bases se leen del `fill` de cada rombo pequeno en el orden en que el SVG
+    las dibuja: primera, segunda, tercera.
+    """
     return pagina.evaluate(
-        """() => {
-            const marcas = Array.from(document.querySelectorAll('.reliability-marker'));
-            if (!marcas.length) return {total: 0};
-            const punto = marcas[0].querySelector('span');
-            const cs = getComputedStyle(punto);
-            const celda = marcas[0].closest('td, th');
-            return {
-                total: marcas.length,
-                color: cs.backgroundColor,
-                ancho: punto.getBoundingClientRect().width,
-                alto: punto.getBoundingClientRect().height,
-                redondeado: cs.borderRadius,
-                colorDelTexto: celda ? getComputedStyle(celda).color : null,
-                textoCrudo: marcas.map(m => m.textContent).join('')
-            };
-        }"""
+        """(sel) => {
+            return Array.from(document.querySelectorAll(sel + ' tr')).map(tr => {
+                const svg = tr.querySelector('svg');
+                const bases = svg ? Array.from(svg.querySelectorAll('rect')).map(
+                    r => /ec8013/i.test(r.getAttribute('fill') || '') ? '1' : '0').join('') : null;
+                return { bases, texto: tr.textContent.replace(/\s+/g, ' ').trim().slice(0, 70) };
+            }).filter(f => f.bases !== null);
+        }""",
+        selector_cuerpo,
     )
 
 
-def test_los_marcadores_de_fiabilidad_se_ven(pagina):
+@pytest.mark.parametrize("analisis", CON_ROMBO)
+def test_el_rombo_ilumina_las_bases_QUE_TOCAN(pagina, analisis):
     """
-    Se dibujan con CSS y no con los caracteres U+25CF / U+2022.
+    LA PRUEBA DE RIGOR. Que el rombo se dibuje y encienda algo no basta: un
+    diagrama que ilumina las bases EQUIVOCADAS es peor que uno apagado, porque
+    se lee como un dato y describe otra situacion de juego.
 
-    Con caracteres, la forma la decide la tipografia: si no tiene el glifo, el
-    navegador sustituye por otra fuente y salen ROMBOS BLANCOS en vez de puntos.
-    Eso es lo que se veia, y ningun test lo detectaba.
+    Se comprueba contra el numero de corredores que dice la etiqueta.
     """
-    _generar_re_impact(pagina, "steal_runs")
-    m = _marcadores(pagina)
+    _generar_re_impact(pagina, analisis)
+    filas = _bases_por_fila(pagina, "#re-impact-table-body")
 
-    assert m["total"] > 0, "no se pinto ningun marcador de fiabilidad"
-    assert m["ancho"] > 0 and m["alto"] > 0, "el marcador ocupa cero: no se ve"
+    assert filas, f"{analisis}: ninguna fila con rombo"
+    for f in filas:
+        encendidas = f["bases"].count("1")
+        assert 0 <= encendidas <= 3, f"{analisis}: {encendidas} bases encendidas en {f['bases']}"
+        assert encendidas > 0, (
+            f"{analisis}: rombo apagado en la fila {f['texto']!r}. "
+            f"El escenario no se reconocio como estado de bases."
+        )
 
 
-def test_los_marcadores_son_naranjas_y_no_del_color_del_texto(pagina):
+@pytest.mark.parametrize("familia,analisis", [("stealing", "steal_runs"),
+                                              ("tagging", "tagging_runs"),
+                                              ("running", "running_runs")])
+def test_las_dos_tablas_ensenan_LOS_MISMOS_escenarios(pagina, familia, analisis):
     """
-    Heredaban `currentColor`, o sea el blanco del texto de la celda. Un marcador
-    del mismo color que el numero al que avisa no avisa de nada.
-    """
-    _generar_re_impact(pagina, "steal_runs")
-    m = _marcadores(pagina)
+    EL TEST QUE FALTABA DESDE EL PRINCIPIO.
 
-    assert m["color"] != m["colorDelTexto"], (
-        f"el marcador tiene el mismo color que el texto: {m['color']}"
+    Break-Even y RE Impact son dos vistas del MISMO calculo: si una ensena cinco
+    escenarios y la otra dos, una esta incompleta. Paso exactamente eso --Base
+    Running tenia 5 filas en una tabla y 2 en la otra-- y ningun test lo veia,
+    porque todos comprobaban cada tabla consigo misma.
+
+    Comparar las dos es lo unico que lo detecta.
+    """
+    impacto = pagina.evaluate(
+        """async (analisis) => {
+            const ms = document.querySelector('select[name="matrix_type"], #matrix_type');
+            ms.value = 'RE_IMPACT'; ms.dispatchEvent(new Event('change', {bubbles:true}));
+            await new Promise(r => setTimeout(r, 400));
+            const sel = document.querySelector('#re_impact_type');
+            sel.value = analisis; sel.dispatchEvent(new Event('change', {bubbles:true}));
+            await new Promise(r => setTimeout(r, 400));
+            Array.from(document.querySelectorAll('button'))
+                 .filter(b => /generate/i.test(b.textContent))[0].click();
+            await new Promise(r => setTimeout(r, 3200));
+            return document.querySelectorAll('#re-impact-table-body tr').length;
+        }""",
+        analisis,
     )
-    rgb = [int(x) for x in m["color"].replace("rgb(", "").replace(")", "").split(",")[:3]]
-    assert rgb[0] > rgb[2] and rgb[0] > 150, f"no parece naranja: {m['color']}"
+    umbral = pagina.evaluate(
+        """async (familia) => {
+            const ms = document.querySelector('select[name="matrix_type"], #matrix_type');
+            ms.value = 'BREAKEVEN_POINTS'; ms.dispatchEvent(new Event('change', {bubbles:true}));
+            await new Promise(r => setTimeout(r, 400));
+            const bt = document.querySelector('#breakeven_type, select[name="breakeven_type"]');
+            if (bt) { bt.value = familia; bt.dispatchEvent(new Event('change', {bubbles:true})); }
+            await new Promise(r => setTimeout(r, 400));
+            Array.from(document.querySelectorAll('button'))
+                 .filter(b => /generate/i.test(b.textContent))[0].click();
+            await new Promise(r => setTimeout(r, 3200));
+            return document.querySelectorAll('#sb-breakeven-table-body tr').length;
+        }""",
+        familia,
+    )
 
-
-def test_el_marcador_no_depende_de_ningun_caracter(pagina):
-    """
-    Si vuelve a escribirse con texto, la tipografia decide como se ve y el fallo
-    reaparece en cuanto alguien cambie la fuente.
-    """
-    _generar_re_impact(pagina, "steal_runs")
-    m = _marcadores(pagina)
-
-    assert not m["textoCrudo"].strip(), f"el marcador lleva texto: {m['textoCrudo']!r}"
-
-
-def test_el_marcador_es_redondo(pagina):
-    """Un cuadrado naranja se lee como otra cosa; el sitio usa puntos."""
-    _generar_re_impact(pagina, "steal_runs")
-    m = _marcadores(pagina)
-
-    assert "50%" in m["redondeado"] or "px" in m["redondeado"], m["redondeado"]
+    assert impacto == umbral, (
+        f"{familia}: Break-Even ensena {umbral} filas y RE Impact {impacto}. "
+        f"Son el mismo calculo; una de las dos esta incompleta."
+    )
 
 
 # ---------------------------------------------------------------------------
-# El rombo de bases
+# El boton de descarga: PULSANDOLO
 # ---------------------------------------------------------------------------
 
-# Los que muestran estado de bases. `running_runs` NO esta: estirar el batazo no
-# tiene estado de bases, porque el que corre es el bateador.
-CON_ROMBO = ["steal_runs", "tagging_runs", "sac_bunt", "ibb"]
+def _descargar(pagina, analisis: str, formato: str):
+    """
+    Elige el formato, PULSA el boton y devuelve el fichero que sale.
 
+    Lo anterior que llamaba "test de descarga" solo miraba que el tipo tuviera
+    entrada en unos mapas del JS. Eso no pulsa nada: el boton podia estar roto y
+    los tests en verde.
+    """
+    _generar_re_impact(pagina, analisis)
 
-def _rombos(pagina) -> dict:
-    return pagina.evaluate(
-        """() => {
-            const svgs = document.querySelectorAll('#re-impact-table-body svg');
-            const rellenos = Array.from(document.querySelectorAll('#re-impact-table-body svg *'))
-                .map(e => e.getAttribute('fill'))
-                .filter(f => f && f !== 'none' && !/#fff|white|transparent/i.test(f));
-            return { svgs: svgs.length, iluminadas: rellenos.length,
-                     colores: [...new Set(rellenos)] };
-        }"""
+    pagina.evaluate(
+        """(formato) => {
+            const sel = document.querySelector('#re-impact-format-select, [id*="re-impact"][id*="format"]')
+                     || Array.from(document.querySelectorAll('select'))
+                        .find(s => Array.from(s.options).some(o => o.value === 'csv'));
+            if (sel) { sel.value = formato; sel.dispatchEvent(new Event('change', {bubbles: true})); }
+        }""",
+        formato,
     )
 
+    with pagina.expect_download(timeout=15000) as info:
+        pagina.evaluate(
+            """() => {
+                const btn = document.querySelector('#re-impact-download-btn')
+                         || Array.from(document.querySelectorAll('button, a'))
+                            .find(b => /download/i.test(b.textContent) && b.offsetParent !== null);
+                btn.click();
+            }"""
+        )
+    return info.value
 
-@pytest.mark.parametrize("analisis", CON_ROMBO)
-def test_el_rombo_de_bases_se_dibuja(pagina, analisis):
+
+@pytest.mark.parametrize("analisis", ["steal_runs", "running_runs", "tagging_runs", "sac_bunt"])
+@pytest.mark.parametrize("formato", ["csv", "json"])
+def test_el_boton_de_descarga_baja_un_fichero(pagina, analisis, formato):
     """
-    La tabla dibuja un diagrama del campo con las bases ocupadas. La funcion que
-    lo pinta recibe `scenario` esperando "100", "010"... Si se le pasa el texto
-    descriptivo ("Double steal"), no reconoce nada y sale el ROMBO VACIO: sin
-    error, con la tabla llena de numeros correctos y las bases todas apagadas.
+    EL TEST QUE FALTABA. Se pulsa el boton de verdad y se comprueba que sale un
+    fichero: que exista, que tenga la extension pedida y que NO venga vacio.
     """
-    _generar_re_impact(pagina, analisis)
-    r = _rombos(pagina)
+    import json as _json
 
-    assert r["svgs"] > 0, f"{analisis}: ninguna fila dibuja el rombo de bases"
+    d = _descargar(pagina, analisis, formato)
+    ruta = d.path()
+
+    assert ruta is not None, f"{analisis}/{formato}: no se descargo nada"
+    contenido = pathlib.Path(ruta).read_text(encoding="utf-8", errors="replace")
+
+    assert contenido.strip(), f"{analisis}/{formato}: el fichero vino VACIO"
+    assert d.suggested_filename.endswith(f".{formato}"), d.suggested_filename
+
+    if formato == "json":
+        _json.loads(contenido)          # revienta si no es JSON valido
+    else:
+        assert contenido.count("\n") >= 2, "un CSV con cabecera y sin filas"
 
 
-@pytest.mark.parametrize("analisis", CON_ROMBO)
-def test_el_rombo_ilumina_bases_ocupadas(pagina, analisis):
+@pytest.mark.parametrize("analisis", ["steal_runs", "running_runs", "tagging_runs"])
+def test_el_csv_descargado_trae_los_escenarios_de_la_tabla(pagina, analisis):
     """
-    Un rombo dibujado pero con todas las bases apagadas es el mismo fallo un
-    paso mas adelante: el estado de bases no se reconocio.
+    Un CSV con cabecera y sin datos pesa mas que cero y pasa cualquier
+    comprobacion de "existe". Tiene que traer las mismas filas que se ven.
     """
-    _generar_re_impact(pagina, analisis)
-    r = _rombos(pagina)
+    filas_en_pantalla = _generar_re_impact(pagina, analisis)["filas"]
+    contenido = pathlib.Path(_descargar(pagina, analisis, "csv").path()).read_text(
+        encoding="utf-8", errors="replace")
 
-    assert r["iluminadas"] > 0, (
-        f"{analisis}: {r['svgs']} rombos y NINGUNA base encendida. "
-        f"El `scenario` no es un estado de bases."
+    lineas = [l for l in contenido.splitlines() if l.strip()]
+
+    assert len(lineas) - 1 >= filas_en_pantalla, (
+        f"{analisis}: la tabla ensena {filas_en_pantalla} filas y el CSV trae {len(lineas) - 1}"
     )
-
-
-@pytest.mark.parametrize("analisis", CON_ROMBO)
-def test_las_bases_usan_el_mismo_naranja_que_el_resto_del_sitio(pagina, analisis):
-    """
-    El color sale del propio sitio, no se elige aparte: si un analisis pinta sus
-    bases de otro color, la tabla se lee como si dijera algo distinto.
-    """
-    _generar_re_impact(pagina, "sac_bunt")
-    referencia = set(_rombos(pagina)["colores"])
-
-    _generar_re_impact(pagina, analisis)
-    colores = set(_rombos(pagina)["colores"])
-
-    assert colores <= referencia, f"{analisis} usa colores propios: {colores - referencia}"

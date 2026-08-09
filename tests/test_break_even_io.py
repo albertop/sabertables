@@ -648,7 +648,8 @@ def pipeline_falso(monkeypatch, tmp_path):
     # Si se parchean los cargadores viejos, main() llama igualmente a estos y se
     # conecta a SQL Server de verdad: la suite paso de 15 segundos a casi cinco
     # minutos antes de darnos cuenta.
-    for nombre in ("load_stretch_rows_from_db", "load_tag_up_rows_from_db"):
+    for nombre in ("load_stretch_rows_from_db", "load_tag_up_rows_from_db",
+                   "load_advance_rows_from_db"):
         monkeypatch.setattr(be, nombre, lambda *a, **k: (be_falso(), []))
 
     monkeypatch.setattr(be, "load_steal_impact_rows_from_db", lambda *a, **k: [])
@@ -1115,7 +1116,8 @@ def pipeline_de_otra_temporada(monkeypatch, tmp_path):
                    "load_steal_impact_rows_from_db"):
         monkeypatch.setattr(be, nombre, lambda *a, **k: list(vacio))
 
-    for nombre in ("load_stretch_rows_from_db", "load_tag_up_rows_from_db"):
+    for nombre in ("load_stretch_rows_from_db", "load_tag_up_rows_from_db",
+                   "load_advance_rows_from_db"):
         monkeypatch.setattr(be, nombre, lambda *a, **k: ([], []))
 
     return tmp_path

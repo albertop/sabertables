@@ -921,6 +921,22 @@ def calculate_running_impact(stretch_df: pd.DataFrame) -> list:
     )
 
 
+def calculate_advance_impact(adv_df: pd.DataFrame) -> list:
+    """
+    Avanzar una base de mas en un batazo ajeno, en carreras.
+
+    Va al MISMO tipo `running_runs` que estirar el batazo, porque en la tabla de
+    break-even las dos vistas forman una sola familia: `running` = stretch +
+    advance, cinco escenarios. Publicar solo stretch dejaba RE Impact con dos
+    filas donde Break-Even ensena cinco -- el mismo calculo contado a medias.
+    """
+    return _impacto_desde_cubos(
+        adv_df, "stop", ["season", "outs", "direction"], "running_runs",
+        lambda row: LABELS_RUNNING.get(row["direction"], row["direction"]),
+        "Advance",
+    )
+
+
 def calculate_tagging_impact(tag_df: pd.DataFrame) -> list:
     """
     Tag-up, en carreras.
@@ -936,7 +952,7 @@ def calculate_tagging_impact(tag_df: pd.DataFrame) -> list:
 
     return _impacto_desde_cubos(
         tag_df, "stay", ["season", "outs", "runners", "direction"], "tagging_runs",
-        etiqueta, "Tag-up", escenario_de=lambda row: str(row["runners"]),
+        etiqueta, "Tag-up",
     )
 
 
@@ -1122,6 +1138,15 @@ def calculate_tagging_breakeven(tag_df: pd.DataFrame) -> list:
             "n":             int(row["n"]),
         })
     return rows
+
+
+def load_advance_rows_from_db() -> tuple:
+    """Una sola consulta, break-even y carreras. Ver load_stretch_rows_from_db."""
+    log.info("")
+    log.info("Extracting runner-advance rows from SQL view...")
+    engine = connect_to_database()
+    adv_df = _read_sql_view(engine, QUERY_ADVANCE, "dbo.v_re_analysis_advance")
+    return calculate_advance_breakeven(adv_df), calculate_advance_impact(adv_df)
 
 
 def load_stretch_rows_from_db() -> tuple:
@@ -2248,13 +2273,15 @@ def load_steal_impact_rows_from_db(re_lookup: dict, seasons_list: list) -> list:
                 rows.append({
                     "season": season,
                     "type": "steal_runs",
-                    # scenario ES EL ESTADO DE BASES, no el texto.
+                    # scenario ES EL TEXTO, igual que en breakeven_points.
                     #
-                    # La tabla dibuja un rombo de campo con las bases ocupadas en
-                    # naranja, y esa funcion recibe `scenario` esperando "100",
-                    # "010"... Con el texto descriptivo no reconoce nada y pinta
-                    # el rombo VACIO. Es lo que hace sac_bunt, que si funciona.
-                    "scenario": antes,
+                    # Llego a ser el estado de bases para que la tabla dibujara
+                    # el rombo del campo, y sobraba: el frontend ya tiene ese
+                    # mapeo en BREAKEVEN_SCENARIOS, que ademas define que filas
+                    # se ensenan. Duplicarlo aqui rompia el cruce con la tabla de
+                    # break-even, que es lo que vigila la identidad
+                    # BE = coste / (ganancia + coste).
+                    "scenario": label,
                     "label": label,
                     "outs": outs,
                     "delta_re": carreras["delta_re"],
@@ -2658,7 +2685,12 @@ def main(data_dir=None):
 
     sb_rows      = calculate_sb_breakeven(re_lookup, n_lookup, temporadas)
     stretch_be, stretch_runs = load_stretch_rows_from_db()
-    running_rows = stretch_be + load_advance_break_even_rows_from_db()
+    advance_be, advance_runs = load_advance_rows_from_db()
+    running_rows = stretch_be + advance_be
+    # `running` es UNA familia de cinco escenarios: dos de estirar el batazo y
+    # tres de avanzar en un batazo ajeno. Publicar solo los dos primeros dejaba
+    # RE Impact con dos filas donde Break-Even ensena cinco.
+    stretch_runs = stretch_runs + advance_runs
     tagging_be, tagging_runs = load_tag_up_rows_from_db()
     tagging_rows = tagging_be
     bunt_for_hit_be_rows = load_bunt_break_even_rows_from_db()

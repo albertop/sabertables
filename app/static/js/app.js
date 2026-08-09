@@ -5661,6 +5661,24 @@ function convertRunnersToBinary(state) {
 
 // Break-Even Points rendering
 // Scenario display order and metadata per analysis type
+// Los tres analisis *_runs de RE Impact son los MISMOS escenarios que
+// Break-Even, contados en carreras en vez de como umbral. Reusan su tabla:
+// de ahi sale el estado de bases para el rombo del campo y el conjunto de filas.
+//
+// No se duplica el mapeo. Llego a duplicarse en el pipeline --publicando el
+// estado de bases como `scenario`-- y ademas de sobrar rompio el cruce entre las
+// dos tablas, que es lo que vigila BE = coste / (ganancia + coste).
+const RE_IMPACT_RUNS_A_BREAKEVEN = {
+    steal_runs: 'stealing',
+    running_runs: 'running',
+    tagging_runs: 'tagging'
+};
+
+function escenariosDeImpactoEnCarreras(analysisType) {
+    const familia = RE_IMPACT_RUNS_A_BREAKEVEN[analysisType];
+    return familia ? BREAKEVEN_SCENARIOS[familia] : null;
+}
+
 const BREAKEVEN_SCENARIOS = {
     stealing: [
         { key: 'Runner on 1B steals 2B',                             runners: '100', label: 'Runner on 1B steals 2B' },
@@ -7054,15 +7072,27 @@ function renderReImpactPage() {
         // SIN ESTA RAMA pivotedData queda VACIA y la tabla se pinta sin filas:
         // sin error, con la API en 200 y el titulo correcto. Fue exactamente lo
         // que paso.
-        const vistos = [];
-        displayData.forEach(d => { if (!vistos.includes(d.scenario)) vistos.push(d.scenario); });
+        // Los escenarios y su orden salen de BREAKEVEN_SCENARIOS, igual que en
+        // la tabla de umbrales: asi las dos ensenan LAS MISMAS filas y en el
+        // mismo orden. Derivarlos de los datos dejaba fuera los que aun no
+        // tuvieran fila y el orden dependia de como llegara el parquet.
+        const definidos = escenariosDeImpactoEnCarreras(analysisType);
+        const vistos = definidos ? definidos.map(e => e.key) : [];
+        if (!definidos) {
+            displayData.forEach(d => { if (!vistos.includes(d.scenario)) vistos.push(d.scenario); });
+        }
         vistos.forEach(scenario => {
             const outs0 = displayData.find(d => d.scenario === scenario && d.outs === 0);
             const outs1 = displayData.find(d => d.scenario === scenario && d.outs === 1);
             const outs2 = displayData.find(d => d.scenario === scenario && d.outs === 2);
+            const definido = definidos ? definidos.find(e => e.key === scenario) : null;
             pivotedData.push({
                 scenario: scenario,
-                label: outs0?.label || outs1?.label || outs2?.label || scenario,
+                // El rombo del campo se dibuja con esto. Sin `runners` sale
+                // apagado, con la tabla llena de numeros correctos.
+                runners: definido ? definido.runners : undefined,
+                label: definido ? definido.label
+                       : (outs0?.label || outs1?.label || outs2?.label || scenario),
                 outs_0: outs0 ? outs0.delta_re : null,
                 outs_1: outs1 ? outs1.delta_re : null,
                 outs_2: outs2 ? outs2.delta_re : null,
@@ -7873,7 +7903,14 @@ function renderReImpactSacBuntTable(headEl, bodyEl, displayData, displayMode = '
     
     // Build body - use string serialization like RE24 tables
     const rows = displayData.map(row => {
-        const svgString = getBaseStateSVGMarkup(row.scenario);
+        // `runners` si viene, y si no el escenario.
+        //
+        // En sac_bunt e IBB el escenario YA es el estado de bases, asi que
+        // servia. Los tres analisis en carreras llevan el texto --para poder
+        // cruzarlos con la tabla de break-even-- y su estado llega en `runners`,
+        // puesto desde BREAKEVEN_SCENARIOS. Sin esto el rombo sale apagado con
+        // la tabla llena de numeros correctos.
+        const svgString = getBaseStateSVGMarkup(row.runners || row.scenario);
         
         return `
             <tr>
@@ -7927,7 +7964,7 @@ function renderReImpactIbbTable(headEl, bodyEl, displayData, displayMode = 'valu
     
     // Build body - use string serialization like RE24 tables
     bodyEl.innerHTML = displayData.map(row => {
-        const svgString = getBaseStateSVGMarkup(row.scenario);
+        const svgString = getBaseStateSVGMarkup(row.runners || row.scenario);
         
         return `
             <tr>
@@ -8030,7 +8067,7 @@ function renderReImpactPhTable(headEl, bodyEl, displayData, displayMode = 'value
     
     // Build body - use string serialization like RE24 tables
     bodyEl.innerHTML = displayData.map(row => {
-        const svgString = getBaseStateSVGMarkup(row.scenario);
+        const svgString = getBaseStateSVGMarkup(row.runners || row.scenario);
         
         return `
             <tr>
