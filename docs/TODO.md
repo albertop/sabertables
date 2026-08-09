@@ -2149,6 +2149,110 @@ menciona www.
 
 ---
 
+## 9. Revisiones externas v06 y v07 — validadas el 8 ago 2026
+
+**Las dos son revisiones nuevas de verdad**, a diferencia de la v03 y la v05, que
+fueron duplicados. La v06 mira el código de producción; la v07 mira **la propia
+suite de tests**, y está escrita contra el estado de ahora.
+
+### 9.1 Veredictos de la v06
+
+| hallazgo | veredicto |
+|---|---|
+| **CR-06-01** `DGL_SQL_SERVERS` parte `host,1433` | **CONFIRMADO y CORREGIDO** |
+| **CR-06-02** un DataFrame vacío pasa la validación de esquema | **CONFIRMADO**, pendiente |
+| **CR-06-03** `zfill(3)` sin validar el dominio de `runners` | **CONFIRMADO**, pendiente |
+| **CR-06-04** sin timeout de sentencia | **PARCIAL**, ver abajo |
+| **CR-06-05** las tablas no tienen `caption` ni `aria-labelledby` | **CONFIRMADO**, pendiente |
+| **CR-06-06** la sanitización no cubre detalles SQL/ODBC | **PREMISA FALSA** |
+| **CR-06-07** la media ponderada no está centralizada | **CONFIRMADO, y más de lo que dice** |
+
+**CR-06-01, corregido.** Medido: `tcp:db.example.com,1433` se parseaba como
+`['tcp:db.example.com', '1433']`, o sea que se intentaría conectar a un servidor
+llamado `1433` antes de fallar. Hoy no se nota porque la conexión va a
+localhost. El separador de lista pasa a punto y coma, con la coma aceptada por
+compatibilidad cuando ningún trozo es solo dígitos.
+
+**CR-06-06, premisa falsa.** El escenario de ataque describe fugas de
+SQLAlchemy/PyODBC, driver o DSN. **La aplicación no toca SQL Server**: no hay ni
+una referencia a pyodbc o sqlalchemy en `app/`; solo lee parquets. Esos detalles
+no pueden filtrarse porque no existen en ese proceso. La recomendación genérica
+—mensaje genérico más un id de petición— sigue teniendo sentido como defensa en
+profundidad, pero el riesgo descrito no aplica.
+
+**CR-06-07, acierta más de lo que su autor sabía.** Cita
+`validate_weighted_mean_inputs`, que **ya no existe**: se borró hoy por tener
+cero usos. Pero el fondo es correcto y peor de lo que dice: hay **cuatro
+divisiones ponderadas escritas a mano** fuera de `calculate_weighted_mean`
+—Win Expectancy, WPA, Leverage Index y las transiciones RE24—, cada una con su
+propio `sum(x*n)/sum(n)`. Cuatro sitios donde arreglar un fallo exige acordarse
+de los otros tres.
+
+**CR-06-04, parcial.** `PH_QUERY_TIMEOUT_SECONDS` ya pone un `LOCK_TIMEOUT`, que
+cubre esperas por bloqueo pero no una consulta legítimamente lenta. Y la
+extracción de `01` no tiene ningún timeout. Ahora bien: **el pipeline tarda ocho
+minutos y corre una vez al año**; un timeout de sentencia mal calibrado abortaría
+una consulta que solo era lenta. Lo que el revisor pide al final —que un fallo
+tumbe el lote entero sin publicar nada— **ya ocurre**: la excepción descarta el
+staging y `app/data` queda intacto.
+
+### 9.2 Veredictos de la v07
+
+Revisa la suite, no el código. Dos afirmaciones se midieron:
+
+**[ALTO] «la suite depende del orden».** **No se reproduce.** Ejecutada entera y
+con los ficheros en otro orden, 671 tests en verde en ambos casos. El riesgo que
+describe es real como categoría —y ya mordió dos veces en esta sesión— pero está
+cubierto: hay una fixture en `conftest.py` que restaura las tres fechas de
+temporada después de cada test, y otra que restaura el módulo recargado en modo
+producción. Se deja como **vigilancia**, no como defecto abierto.
+
+**[MEDIO] «demasiados `pytest.skip` por falta de datos».** Hay **14** en
+`test_data_invariants.py`, y hoy **se salta cero**. El escenario que teme —CI en
+limpio, todo verde sin ejecutar nada— **no se da**, porque `app/data/` está
+versionado en git: un clon nuevo trae los parquets. Solo saltarían si alguien los
+borrara. Riesgo bajo, pero conviene que la suite **falle** en vez de saltar si
+los datos no están donde deberían.
+
+Los demás hallazgos de la v07 son ampliaciones de cobertura razonables y ninguno
+señala un fallo: estructura de los errores 4xx además del código, concurrencia en
+más de un dataset, cabeceras de proxy ambiguas, reintento parcial del pipeline y
+contrato entre la configuración de la app y la del despliegue.
+
+### 9.3 Plan de trabajo
+
+**Primero, lo que es un defecto y se arregla solo:**
+
+1. **CR-06-02** — `allow_empty=False` en `validate_dataframe_schema`. Un parquet
+   con el esquema correcto y **cero filas** pasa hoy la validación de arranque y
+   publica una tabla en blanco. La promoción del staging rechaza ficheros de cero
+   **bytes**, no de cero **filas**, así que este hueco es real.
+2. **CR-06-03** — validar `runners` contra el conjunto canónico
+   (`000`,`100`,`010`,`001`,`110`,`101`,`011`,`111`) después del `zfill(3)`, en
+   los cuatro sitios. Hoy los datos están limpios —comprobado, solo esos ocho
+   valores—, así que es prevención. Ojo: `re_impact.scenario` contiene además
+   etiquetas de platoon, así que la validación va sobre la columna `runners`, no
+   sobre `scenario`.
+3. **CR-06-07** — unificar las cuatro divisiones ponderadas en
+   `calculate_weighted_mean`. Es refactor con los tests ya puestos, así que la
+   red de seguridad existe.
+
+**Después, lo que mejora sin arreglar nada roto:**
+
+4. **CR-06-05** — `aria-labelledby` en las tablas. Accesibilidad; barato.
+5. **v07** — que `test_data_invariants` falle en vez de saltar cuando faltan los
+   parquets, y aserciones sobre el cuerpo de los errores 4xx, no solo el código.
+
+**Lo que NO se hará, y por qué:**
+
+- **CR-06-04**, timeout de sentencia: el pipeline corre una vez al año y tarda
+  ocho minutos; un techo mal puesto abortaría una consulta legítima. Lo que pide
+  el revisor al final ya ocurre.
+- **CR-06-06**: la premisa no aplica; la aplicación no habla con la base.
+- El resto de la v07: ampliaciones de cobertura sobre una suite que ya está al
+  **100%** con verificación por mutación. Se anotan, no se priorizan.
+
+---
 ## 8. Análisis nuevos (features)
 
 **Esta sección es distinta de las anteriores.** Las secciones 1 a 7 son defectos y
