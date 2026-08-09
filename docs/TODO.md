@@ -2218,8 +2218,35 @@ dos salidas:
 
 ### 10.4 Plan
 
-**Paso 1 — decidir el alcance del robo.** Opción 1 (rápida, tabla desigual) u
-opción 2 (vista nueva con SB/CS, los tres iguales). Es lo único que bloquea.
+**Paso 1 — DECIDIDO: opción 2**, vista nueva con los conteos reales de SB/CS.
+
+**Ya medido y validado contra la realidad (9 ago 2026).** El enfoque funciona:
+
+- La fuente **no** es `event_cd`: `v_retroAllEventsRegAndPost` trae banderas
+  **por corredor** —`RUN1_SB_FL`, `RUN1_CS_FL`, `RUN2_SB_FL`…— que son más
+  precisas, porque un robo ocurre en un lanzamiento cualquiera y no tiene por qué
+  ser el evento de la jugada.
+- **Los pickoffs hay que excluirlos** con `RUN1_PK_FL <> 'T'`. No son atrapados
+  robando: son otra jugada, y de hecho son el feature 8.1. En 2025, con corredor
+  solo en primera, hubo **365** — nada despreciable si se cuelan como CS.
+- El estado de bases se deriva de `BASE1_RUN_ID` / `BASE2_RUN_ID` /
+  `BASE3_RUN_ID`; en esa vista **no existe** la columna `RUNNERS`.
+
+**La validación**, temporada 2025:
+
+| estado | SB | CS | tasa |
+|---|---|---|---|
+| corredor en 1B (`100`) | 2.367 | 668 | **77,99%** |
+| 1B y 3B (`101`) | 537 | 41 | ~93% |
+
+El 77,99% coincide con la tasa conocida de las Grandes Ligas en la era posterior
+al cambio de reglas de 2023, así que la consulta está contando lo que dice
+contar. Y el 93% con corredor en tercera tiene lectura clara: la defensa concede
+esa base para no arriesgar la carrera.
+
+**Lo que queda del paso 1:** escribir la vista `21_v_re_analysis_sb_attempts.sql`
+con esa consulta agregada por temporada, outs, estado y escenario, y añadirla al
+DDL versionado.
 
 **Paso 2 — pipeline.** En `create_break_even_points.py`, junto al cálculo de cada
 break-even que ya existe, emitir además filas de impacto con
