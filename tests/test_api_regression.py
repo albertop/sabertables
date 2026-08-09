@@ -1373,3 +1373,30 @@ def test_los_analisis_en_carreras_se_pueden_descargar(tipo):
     mapa = js.split("'ph_pitcher': 'PH_Pitcher',", 1)[1].split("};", 1)[0]
 
     assert re.search(rf"'{tipo}'\s*:", mapa), f"{tipo} no tiene nombre de descarga"
+
+
+@pytest.mark.parametrize("tipo", TIPOS_EN_CARRERAS)
+@pytest.mark.parametrize("formato", ["csv", "json"])
+def test_los_analisis_en_carreras_se_descargan_en_los_dos_formatos(tipo, formato):
+    """
+    La descarga se arma en el navegador a partir de la respuesta de la API, asi
+    que lo que hay que garantizar es que existe el nombre de fichero para cada
+    tipo y que los dos formatos siguen declarados.
+
+    Se comprueban los DOS porque el selector ofrece los dos: si uno se cae, el
+    boton no falla -- baja un fichero vacio o con nombre generico, que es peor
+    que un error.
+    """
+    import re
+    from pathlib import Path
+
+    js = (Path(__file__).parent.parent / "app" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    mapa = js.split("'ph_pitcher': 'PH_Pitcher',", 1)[1].split("};", 1)[0]
+
+    assert re.search(rf"'{tipo}'\s*:", mapa), f"{tipo} no tiene nombre de descarga"
+    assert f"format === '{formato}'" in js, f"el formato {formato} ya no se construye"
+
+
+@pytest.mark.parametrize("formato", ["csv", "json"])
+def test_el_selector_de_descarga_ofrece_los_dos_formatos(client, formato):
+    assert f'<option value="{formato}"' in client.get("/").text

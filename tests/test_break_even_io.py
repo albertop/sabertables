@@ -1410,3 +1410,31 @@ def test_el_tag_up_tambien_consulta_una_sola_vez(vistas):
     assert len([v for v in vistas["consultadas"] if "tag_up" in v]) == 1
     assert umbral and carreras
     assert carreras[0]["type"] == "tagging_runs"
+
+
+def test_el_doble_robo_reparte_el_atrapado_entre_los_dos_corredores(vistas):
+    """
+    El atrapado del doble robo es una MEZCLA: 0.863 el corredor de delante,
+    0.137 el de atras, medido sobre r24Transitions. No es un solo estado.
+
+    Usar uno solo hacia que esta tabla y la de break-even dejaran de cuadrar. Lo
+    detecto el test de la identidad contra los datos publicados: 232 celdas
+    descuadradas de 348, todas de doble robo, y solo con 0 y 1 out --con 2 el
+    atrapado vale cero por definicion y no hay mezcla que hacer.
+    """
+    vistas["respuestas"] = {"sb_attempts": pd.DataFrame([{
+        "season": 2024, "outs": 0, "runners": "110", "scenario": "Double steal",
+        "n_success": 80, "n_fail": 20, "n_attempts": 100,
+    }])}
+    lookup = {
+        (2024, 0, "110"): 1.45, (2024, 0, "011"): 1.95,
+        (2024, 1, "010"): 0.65,   # atrapan al de delante
+        (2024, 1, "001"): 0.95,   # atrapan al de atras
+    }
+
+    fila = be.load_steal_impact_rows_from_db(lookup, [2024])[0]
+
+    w = be.DOUBLE_STEAL_LEAD_CAUGHT_WEIGHT
+    re_cs = w * 0.65 + (1 - w) * 0.95
+    assert fila["cost_runs"] == pytest.approx(1.45 - re_cs)
+    assert fila["cost_runs"] != pytest.approx(1.45 - 0.65), "eso seria solo el de delante"

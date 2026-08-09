@@ -1119,3 +1119,105 @@ def test_la_portada_conserva_sus_senales_basicas():
     assert len(re.findall(r'<h1[\s>]', html)) == 1, 'debe haber exactamente un h1'
     assert re.search(r'<html[^>]*lang="[a-z]{2}', html), 'falta el idioma en <html>'
     assert 'application/ld+json' in html, 'faltan los datos estructurados JSON-LD'
+
+
+# ---------------------------------------------------------------------------
+# Las dos vistas del mismo numero tienen que cuadrar (seccion 10 del TODO)
+# ---------------------------------------------------------------------------
+
+TIPOS_EN_CARRERAS = {
+    "steal_runs": "stealing",
+    "running_runs": "running",
+    "tagging_runs": "tagging",
+}
+
+
+def _impacto():
+    return pd.read_parquet(DATA_DIR / "re_impact.parquet")
+
+
+def _breakeven():
+    return pd.read_parquet(DATA_DIR / "breakeven_points.parquet")
+
+
+def test_los_tres_analisis_en_carreras_estan_publicados():
+    """
+    Si el pipeline deja de emitirlos, la tabla sale vacia en la web y no falla
+    nada. Este test lo convierte en un fallo inmediato.
+    """
+    tipos = set(_impacto()["type"])
+
+    faltan = set(TIPOS_EN_CARRERAS) - tipos
+    assert not faltan, f"faltan en re_impact.parquet: {sorted(faltan)}"
+
+
+def test_las_carreras_traen_ganancia_y_coste():
+    df = _impacto()
+    en_carreras = df[df["type"].isin(TIPOS_EN_CARRERAS)]
+
+    assert en_carreras["gain_runs"].notna().all(), "hay filas sin ganancia"
+    assert en_carreras["cost_runs"].notna().all(), "hay filas sin coste"
+
+
+def test_los_otros_analisis_NO_traen_ganancia_ni_coste():
+    """
+    Son columnas de los tipos *_runs. Si el toque de sacrificio empezara a
+    traerlas, significaria que algo se esta mezclando entre familias.
+    """
+    df = _impacto()
+    otros = df[~df["type"].isin(TIPOS_EN_CARRERAS)]
+
+    assert otros["gain_runs"].isna().all()
+    assert otros["cost_runs"].isna().all()
+
+
+@pytest.mark.parametrize("tipo_runs,tipo_be", TIPOS_EN_CARRERAS.items())
+def test_el_break_even_se_reconstruye_desde_las_carreras(tipo_runs, tipo_be):
+    """
+    EL INVARIANTE QUE UNE LAS DOS TABLAS, contra los datos publicados:
+
+        BE = coste / (ganancia + coste)
+
+    El break-even y las carreras salen de los mismos tres numeros. Si dejan de
+    cuadrar, el sitio publica dos respuestas incompatibles a la misma pregunta y
+    una de las dos esta mal.
+    """
+    carreras = _impacto()
+    carreras = carreras[carreras["type"] == tipo_runs]
+    umbral = _breakeven()
+    umbral = umbral[umbral["type"] == tipo_be]
+
+    j = carreras.merge(
+        umbral[["season", "scenario", "outs", "breakeven_pct"]],
+        on=["season", "scenario", "outs"], how="inner",
+    )
+    assert len(j) > 0, f"{tipo_runs} y {tipo_be} no cruzan por season/scenario/outs"
+
+    j = j[j["breakeven_pct"].notna()]
+    reconstruido = j["cost_runs"] / (j["gain_runs"] + j["cost_runs"])
+    dif = (reconstruido - j["breakeven_pct"]).abs()
+
+    assert dif.max() < 1e-4, (
+        f"{tipo_runs}: la identidad no cuadra, diferencia maxima {dif.max():.6f} "
+        f"en {int((dif >= 1e-4).sum())} de {len(j)} celdas"
+    )
+
+
+@pytest.mark.parametrize("tipo", list(TIPOS_EN_CARRERAS))
+def test_el_signo_del_neto_coincide_con_superar_el_umbral(tipo):
+    """
+    Control de coherencia sabermetrica: donde la tasa observada supera el
+    break-even, intentarlo tiene que GANAR carreras. Si no, una de las dos
+    tablas miente.
+    """
+    df = _impacto()
+    df = df[(df["type"] == tipo) & df["delta_re"].notna()]
+    assert len(df) > 0
+
+    umbral_implicito = df["cost_runs"] / (df["gain_runs"] + df["cost_runs"])
+    # p implicita despejada del neto: neto = p*g - (1-p)*c  =>  p = (neto+c)/(g+c)
+    p = (df["delta_re"] + df["cost_runs"]) / (df["gain_runs"] + df["cost_runs"])
+
+    positivos = df["delta_re"] > 0
+    assert (p[positivos] > umbral_implicito[positivos]).all()
+    assert (p[~positivos] <= umbral_implicito[~positivos] + 1e-9).all()

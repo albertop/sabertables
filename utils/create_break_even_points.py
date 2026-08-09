@@ -2212,7 +2212,23 @@ def load_steal_impact_rows_from_db(re_lookup: dict, seasons_list: list) -> list:
                 re_robo = re_lookup.get((season, outs, despues))
                 # Con 2 outs el atrapado es el tercero: la entrada acaba y la RE
                 # es 0 por definicion, no un valor que buscar en la matriz.
-                re_cs = 0.0 if outs == 2 else re_lookup.get((season, outs + 1, tras_cs))
+                re_cs: float | None
+                if outs == 2:
+                    re_cs = 0.0
+                elif label == "Double steal":
+                    # El atrapado del doble robo es una MEZCLA: 0.863 el de
+                    # delante, 0.137 el de atras, medido sobre r24Transitions.
+                    # Usar un solo estado hace que esta tabla y la de break-even
+                    # dejen de cuadrar -- lo detecto el test de la identidad, con
+                    # 232 celdas descuadradas de 348.
+                    lead = re_lookup.get((season, outs + 1, tras_cs))
+                    trail = re_lookup.get((season, outs + 1, DOUBLE_STEAL_TRAIL_CAUGHT_STATE))
+                    re_cs = None if lead is None or trail is None else (
+                        DOUBLE_STEAL_LEAD_CAUGHT_WEIGHT * lead
+                        + (1.0 - DOUBLE_STEAL_LEAD_CAUGHT_WEIGHT) * trail
+                    )
+                else:
+                    re_cs = re_lookup.get((season, outs + 1, tras_cs))
                 if re_antes is None or re_robo is None or re_cs is None:
                     continue
 
