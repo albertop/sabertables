@@ -135,13 +135,13 @@ La lista original venía toda del lado del lanzamiento. Estos salen del otro lad
 sucesos del juego que mueven corredores y que hoy no se miden en ninguna tabla.
 Van con el mismo triaje.
 
-**`GIDP` es el primero, y está en marcha.** Ver la sección 9 de [TODO.md](TODO.md).
+**`GIDP` fue el primero, y está publicado** en la `1.2025.37`. Ver 8.7 en [TODO.md](TODO.md).
 
 ### Con los datos de evento que ya se extraen
 
 | candidato | qué mediría | viabilidad |
 |---|---|---|
-| **Doble matanza (GIDP)** | Coste en carreras de rodar a doble play frente a un out normal, por estado de bases | Viable. `DP_FL`/`GDP_FL` en el evento. **El primero.** |
+| **Doble matanza (GIDP)** | Coste en carreras de rodar a doble play frente a un out normal, por estado de bases | **PUBLICADO** como Double Play. `DP_FL`, completo desde 1910 |
 | **Wild pitch y passed ball** | Carreras que regala cada uno, por separado | Viable. Banderas propias por evento |
 | **Balk** | Igual, muestra pequeña pero limpia | Viable |
 | **Pickoff** | Coste de que te agarren fuera | Viable, y hoy **no se cuenta en ninguna parte**: `RUN1_PK_FL` se excluye del CS para no inflarlo, y ahí muere |
