@@ -2573,3 +2573,81 @@ el refactor table-driven de `01`, logging con `--log-file` y `argparse` con
 contrato de esquema con la app —que detectó que `re288_frequencies` llevaba
 tiempo sirviendo la columna `frequency` mientras `app/main.py` exigía
 `pa_final_count_share`, dejando ese endpoint roto.
+
+### 8.7 Doble matanza (GIDP) en RE Impact — EN CURSO (9 ago 2026)
+
+Primer análisis de la tanda nueva de candidatos (ver
+[ANALISIS_CANDIDATOS.md](ANALISIS_CANDIDATOS.md)). Mide **cuánto cuesta en
+carreras rodar a doble play** frente a lo que habría pasado con un out normal en
+el mismo estado de bases y outs.
+
+Es el impacto más grande del juego que hoy no está en ninguna tabla: se lleva por
+delante un corredor **y** un out en la misma jugada.
+
+**Antes de escribir nada hay que medir**, que es la regla de la casa: cuántas
+oportunidades hay por estado de bases, cuántas acaban en doble play, y si la
+muestra aguanta el corte por temporada. Lo medido va aquí debajo.
+
+#### La decisión de modelado, que es la que importa
+
+El baseline **no** puede ser el estado de bases de partida sin más: un doble play
+solo ocurre con corredor en primera y menos de dos outs, así que comparar contra
+"todas las situaciones" mezclaría peras con manzanas —el mismo error que se
+arregló en 2.2 con bunt-for-hit y en P0-1 con `ibb`—.
+
+El contraste honesto es **contra el rodado que no acaba en doble play** en el
+mismo estado de bases y los mismos outs. Eso aísla el segundo out, que es lo que
+el análisis dice medir.
+
+#### Lo medido (9 ago 2026)
+
+**`DP_FL` está completo desde 1910.** Entre 19 y 26 dobles matanzas por cada
+1.000 eventos en todas las décadas, sin saltos. No hay problema de cobertura en
+la bandera.
+
+**`BATTEDBALL_CD` no**, y va a peor con el tiempo. Sobre la población del
+análisis —corredor en 1B, menos de 2 outs, la jugada produce al menos un out—:
+
+| temporada | eventos | con código de batazo | DP con código `G` |
+|---|---|---|---|
+| 1910 | 11.288 | 75,2% | 68,4% |
+| 1950 | 12.884 | 81,4% | 84,0% |
+| 1989 | 19.226 | 76,5% | 84,4% |
+| 2000 | 23.620 | 74,3% | 85,6% |
+| 2015 | 22.160 | 70,1% | 87,8% |
+| 2025 | 23.080 | 66,7% | 88,7% |
+
+En 2025, de 3.600 dobles matanzas: 3.206 marcadas `G`, 262 `L` —línea, que es un
+doble play de verdad pero otra jugada—, 77 `F`, 23 `P` y **127 sin código**.
+
+**Consecuencia de diseño: `BATTEDBALL_CD = 'G'` no puede ir en el denominador.**
+Se llevaría por delante un tercio de las oportunidades de 2025, y si el código
+falta de forma correlacionada con el desenlace la tasa sale sesgada. La población
+se define sin él: batazo con corredor en 1B, menos de 2 outs, al menos un out en
+la jugada. Cobertura del 100% y el contraste queda limpio.
+
+**Los estados con doble play son cuatro, no ocho.** Sin corredor forzado en
+primera la tasa es 0-2%; con él, 23-48%. La tabla tiene la forma de `sac_bunt`:
+4 estados de bases (`100`, `101`, `110`, `111`) × 2 estados de outs.
+
+**El estado final sale de `BAT_DEST_ID` y `RUN1..3_DEST_ID`**, no hay que
+inferirlo: destino 0 es out, 1-3 la base, 4 o más anotó.
+
+#### El hallazgo que hace interesante la tabla
+
+Carreras anotadas EN LA JUGADA, 2025, doble play contra un solo out:
+
+| bases | outs | n DP | carreras DP | n 1 out | carreras 1 out |
+|---|---|---|---|---|---|
+| `101` | 0 | 34 | **0,882** | 114 | 0,702 |
+| `101` | 1 | 174 | **0,006** | 232 | 0,806 |
+| `111` | 0 | 48 | **0,792** | 97 | 0,598 |
+| `111` | 1 | 136 | **0,000** | 172 | 0,791 |
+
+Con corredor en tercera y **ningún out**, el doble play anota MÁS que el out
+sencillo: cambia el segundo out por la carrera. Con **un out** la relación se da
+la vuelta entera —de 0,806 a 0,006— porque el tercer out termina la entrada y la
+carrera no cuenta.
+
+Es el mismo suceso con el signo cambiado según los outs. Eso es exactamente lo
+que una tabla por estado base-out enseña y un promedio global esconde.

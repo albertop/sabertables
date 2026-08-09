@@ -126,6 +126,58 @@ del corredor y calidad del brazo.
 brazo no están en Retrosheet, y en Statcast solo desde hace pocos años. Sin esas
 dos, el análisis mide el promedio de situaciones muy distintas.
 
+## Candidatos de jugada, no de lanzamiento (9 ago 2026)
+
+La lista original venía toda del lado del lanzamiento. Estos salen del otro lado:
+sucesos del juego que mueven corredores y que hoy no se miden en ninguna tabla.
+Van con el mismo triaje.
+
+**`GIDP` es el primero, y está en marcha.** Ver la sección 9 de [TODO.md](TODO.md).
+
+### Con los datos de evento que ya se extraen
+
+| candidato | qué mediría | viabilidad |
+|---|---|---|
+| **Doble matanza (GIDP)** | Coste en carreras de rodar a doble play frente a un out normal, por estado de bases | Viable. `DP_FL`/`GDP_FL` en el evento. **El primero.** |
+| **Wild pitch y passed ball** | Carreras que regala cada uno, por separado | Viable. Banderas propias por evento |
+| **Balk** | Igual, muestra pequeña pero limpia | Viable |
+| **Pickoff** | Coste de que te agarren fuera | Viable, y hoy **no se cuenta en ninguna parte**: `RUN1_PK_FL` se excluye del CS para no inflarlo, y ahí muere |
+| **Error defensivo** | Carreras que añade el error, por estado de bases | Viable |
+| **Elección defensiva** | Ídem | Viable |
+| **Sacrifice fly** | Hoy vive dentro de tag-up como jugada, no como desenlace propio | Viable |
+| **Indiferencia defensiva** | El robo que no es robo | Viable. Hoy se mezcla o se descarta según la vista |
+| **Toque para hit en carreras** | `bunt-for-hit` existe solo como umbral | Barato: el patrón de los tres `*_runs` ya está |
+| **Robo por conteo en carreras** | `sb_by_count` existe solo como umbral | Barato, ídem |
+
+### Hacen falta vistas nuevas
+
+| candidato | qué mediría | viabilidad |
+|---|---|---|
+| **Corredor fantasma** | Valor real de empezar en segunda en extra innings | Viable y **es un experimento natural limpio**: la regla entra en 2020 y la serie llega a 2025 |
+| **Relevista con corredores heredados** | Impacto de cambiar de lanzador según el estado de bases | Arrastra el mismo sesgo de selección que el emparejamiento del bullpen |
+| **Tipo de batazo por estado de bases** | Rodado / línea / elevado | Viable desde 1989, que ya es el suelo de cobertura por lanzamiento |
+| **Swing/take en carreras** | Hoy solo existe como umbral | Viable |
+| **Turno en el orden al bate** | El hueco del noveno | Cruza con el bateador designado universal de 2022, que ya está marcado |
+
+### Break-Even
+
+| candidato | qué mediría | viabilidad |
+|---|---|---|
+| **Umbrales en probabilidad de victoria** | Robar con dos outs en el noveno de un juego de una carrera no tiene el mismo umbral que en el segundo inning, y **en carreras eso no se ve** | El mejor de la lista. Reusa Win Expectancy y WPA, que ya están calculadas |
+| **Hit and run** | Cuánto tiene que funcionar para pagar el rodado convertido en doble play y el corredor expuesto | Viable, y encaja con GIDP |
+| **Toque de sacrificio** | Existe como impacto, no como umbral | Viable |
+| **Base por bolas intencional** | Cuánto peor tiene que ser el siguiente bateador | Viable |
+| **Bateador emergente** | Cuánto mejor tiene que ser para pagar el out esperado | Ya comprometido como `8.5` |
+| **Robo de home** y **doble robo retrasado** | | Dudoso por muestra; hay que medirla antes de prometer nada |
+| **Swing en 3-0** | | Viable |
+| **Umbral de robo por inning y marcador** | No solo por conteo | Es el de probabilidad de victoria, acotado |
+
+### Descartados de entrada
+
+Framing del receptor, defensas corridas, infield in, y cualquier cosa que dependa
+de posicionamiento. Retrosheet no lo trae, y lo que saldría sería una estimación
+disfrazada de medición.
+
 ## Lo que tienen en común los que quedan
 
 Casi todos los viables son **variaciones de presentación sobre swing/take por
