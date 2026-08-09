@@ -275,3 +275,37 @@ def test_cerrar_el_engine_lo_libera_y_permite_reconectar(monkeypatch):
 
 def test_cerrar_sin_haber_abierto_no_falla():
     db.dispose_engine()
+
+
+# ---------------------------------------------------------------------------
+# Servidores con puerto (CR-06-01)
+# ---------------------------------------------------------------------------
+
+def test_un_servidor_con_puerto_no_se_parte_en_dos(monkeypatch):
+    """
+    SQL Server expresa el puerto CON COMA: `tcp:db.example.com,1433`. Separando
+    la lista por comas, eso se parte en dos servidores y el segundo se llama
+    "1433": se intenta conectar a un host inexistente antes de fallar.
+
+    Hoy la conexion va a localhost y no se nota; el dia que apunte a un servidor
+    remoto con puerto explicito, deja de funcionar sin que el mensaje diga por que.
+    """
+    monkeypatch.setenv("DGL_SQL_SERVERS", "tcp:db.example.com,1433")
+
+    assert db._configured_servers() == ["tcp:db.example.com,1433"]
+
+
+def test_varios_servidores_se_separan_por_punto_y_coma(monkeypatch):
+    monkeypatch.setenv("DGL_SQL_SERVERS", "tcp:db1.example.com,1433;tcp:db2.example.com,1433")
+
+    assert db._configured_servers() == ["tcp:db1.example.com,1433", "tcp:db2.example.com,1433"]
+
+
+def test_la_lista_separada_por_comas_sigue_funcionando(monkeypatch):
+    """
+    Compatibilidad: la forma antigua --nombres sin puerto separados por coma--
+    tiene que seguir valiendo, o un .env existente deja de conectar.
+    """
+    monkeypatch.setenv("DGL_SQL_SERVERS", "localhost,otro")
+
+    assert db._configured_servers() == ["localhost", "otro"]

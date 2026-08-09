@@ -53,10 +53,30 @@ _connected_server: str | None = None
 
 
 def _configured_servers() -> list[str]:
+    """
+    Lista de servidores a probar, en orden.
+
+    SEPARADOR: punto y coma, no coma. En SQL Server el PUERTO se expresa con
+    coma --`tcp:db.example.com,1433`--, asi que separando por comas ese valor se
+    parte en dos servidores y el segundo se llama "1433". Se intentaria conectar
+    a un host inexistente antes de fallar, y el mensaje no diria por que.
+
+    Se acepta la coma como separador por compatibilidad, pero SOLO cuando no hay
+    ningun punto y coma y ningun trozo parece un puerto: asi un .env antiguo con
+    `localhost,otro` sigue funcionando y uno nuevo con puerto tambien.
+    """
     raw = os.getenv("DGL_SQL_SERVERS", "").strip()
     if not raw:
         return list(DEFAULT_SERVERS)
-    return [s.strip() for s in raw.split(",") if s.strip()]
+
+    if ";" in raw:
+        return [s.strip() for s in raw.split(";") if s.strip()]
+
+    partes = [s.strip() for s in raw.split(",") if s.strip()]
+    if any(p.isdigit() for p in partes):
+        # Algun trozo es solo digitos: era un puerto, no un servidor.
+        return [raw]
+    return partes
 
 
 def _build_url(server: str) -> URL:
