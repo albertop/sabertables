@@ -1327,3 +1327,49 @@ def test_los_tipos_en_carreras_estan_en_una_sola_lista():
     declarados = set(patron.split("|"))
 
     assert set(TIPOS_EN_CARRERAS) <= declarados, f"faltan en el patron: {set(TIPOS_EN_CARRERAS) - declarados}"
+
+
+@pytest.mark.parametrize("tipo", TIPOS_EN_CARRERAS)
+def test_los_analisis_en_carreras_estan_en_el_selector(client, tipo):
+    """
+    Sin la opcion en el desplegable, el analisis existe en el backend y en el
+    parquet pero no hay forma de llegar a el desde el sitio.
+    """
+    assert f'value="{tipo}"' in client.get("/").text
+
+
+@pytest.mark.parametrize("tipo", TIPOS_EN_CARRERAS)
+def test_los_analisis_en_carreras_tienen_nota_metodologica(tipo):
+    """
+    Los otros seis analisis de esta familia la llevan. Publicar un numero en
+    carreras sin decir de donde sale invita a leerlo como si fuera exacto.
+    """
+    from pathlib import Path
+
+    js = (Path(__file__).parent.parent / "app" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    notas = js.split("const METHOD_NOTES = {", 1)[1].split("\n};", 1)[0]
+
+    # La clave EXACTA al principio de linea, no `tipo in notas`: `_running_runs`
+    # contiene `running_runs`, asi que la comprobacion por subcadena pasaba con
+    # la nota renombrada. Es como se colo en la mutacion.
+    import re
+
+    assert re.search(rf"^\s*'?{tipo}'?\s*:", notas, re.M), f"{tipo} no tiene nota"
+
+
+@pytest.mark.parametrize("tipo", TIPOS_EN_CARRERAS)
+def test_los_analisis_en_carreras_se_pueden_descargar(tipo):
+    """
+    El nombre del fichero sale de un mapa aparte. Sin entrada, la descarga sale
+    con un nombre generico o vacia.
+    """
+    import re
+    from pathlib import Path
+
+    js = (Path(__file__).parent.parent / "app" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    # Acotado al mapa de nombres de descarga: buscar en todo el fichero casaba
+    # tambien con el filtro de filas, asi que el test pasaba sin que el nombre
+    # existiera.
+    mapa = js.split("'ph_pitcher': 'PH_Pitcher',", 1)[1].split("};", 1)[0]
+
+    assert re.search(rf"'{tipo}'\s*:", mapa), f"{tipo} no tiene nombre de descarga"

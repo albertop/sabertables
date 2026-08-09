@@ -2699,7 +2699,10 @@ function getDownloadConfig(tableType, data) {
         'ph_position': 'PH_Position',
         'ph_pitcher': 'PH_Pitcher',
         'platoon_baseline': 'Pitcher_Batter_Matchup',
-        'tto': 'Pitcher_Batter_Times_Faced'
+        'tto': 'Pitcher_Batter_Times_Faced',
+        'steal_runs': 'Stolen_Bases_Runs',
+        'running_runs': 'Base_Running_Runs',
+        'tagging_runs': 'Tag_Up_Runs'
     };
 
     const teamLabel = data.team_name || (data.team === 0 ? 'Away' : 'Home');
@@ -6943,6 +6946,11 @@ function renderReImpactPage() {
         if (analysisType === 'ph_pitcher') return row.type === 'ph_pitcher' || row.type === 'ph';
         if (analysisType === 'platoon_baseline') return row.type === 'platoon_baseline';
         if (analysisType === 'tto') return row.type === 'tto';
+        // Los tres en carreras. Son los mismos escenarios que en Break-Even
+        // Points; lo que cambia es la unidad, no el analisis.
+        if (analysisType === 'steal_runs') return row.type === 'steal_runs';
+        if (analysisType === 'running_runs') return row.type === 'running_runs';
+        if (analysisType === 'tagging_runs') return row.type === 'tagging_runs';
         return true;
     };
 
@@ -7553,7 +7561,15 @@ const METHOD_NOTES = {
         + 'about the batter and the pitcher. Part of the gap between counts is that, not the count itself.',
     'bunt-for-hit': 'The alternative is measured from these same batters’ own non-bunt plate '
         + 'appearances, not the league average. What it cannot capture is why they bunted on that '
-        + 'pitch — a drawn-back third baseman does not show up in the record.'
+        + 'pitch — a drawn-back third baseman does not show up in the record.',
+    steal_runs: 'Same three run-expectancy states as the break-even table, expressed in runs '
+        + 'instead of as a threshold. The net uses the observed success rate for that base-out '
+        + 'state, so it answers what attempting was actually worth — not what rate it would take.',
+    running_runs: 'Success is not recorded as such: a single stretched into a double is scored '
+        + 'as a double. The three outcomes are reconstructed from the runner destination, so the '
+        + 'same caveats as the break-even table apply here.',
+    tagging_runs: 'Runners tag up when they are fairly sure, so failures are rare and the cost '
+        + 'side rests on a smaller sample than the gain side.'
 };
 
 const METHOD_NOTE_STYLE = 'font-size:0.78rem; color:#b0b0b0; display:block; line-height:1.25; '
