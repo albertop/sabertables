@@ -309,6 +309,12 @@ SELECT [season], [outs], [runners], [direction], [bucket], [n], [mean_rv], [sd_r
 FROM [dbo].[v_re_analysis_tag_up]
 """
 
+QUERY_GIDP = """
+SELECT [season], [outs], [runners], [es_dp], [tipo_batazo], [runners_fin],
+       [outs_fin], [carreras], [n]
+FROM [dbo].[v_re_analysis_gidp]
+"""
+
 QUERY_BUNT = """
 SELECT [season], [outs], [scenario], [bucket], [n], [mean_rv], [sd_rv]
 FROM [dbo].[v_re_analysis_bunt]
@@ -1171,6 +1177,105 @@ def load_tag_up_rows_from_db() -> tuple:
     engine = connect_to_database()
     tag_df = _read_sql_view(engine, QUERY_TAG_UP, "dbo.v_re_analysis_tag_up")
     return calculate_tagging_breakeven(tag_df), calculate_tagging_impact(tag_df)
+
+
+# Los cuatro estados con forzado en primera. Sin corredor ahi la tasa de doble
+# matanza va del 0% al 2%: no hay jugada que medir y no se publican.
+GIDP_SCENARIOS = [
+    ("100", "Runner on 1B"),
+    ("101", "Runners on 1B & 3B"),
+    ("110", "Runners on 1B & 2B"),
+    ("111", "Bases loaded"),
+]
+
+
+def calculate_gidp_impact(gidp_df: pd.DataFrame, re_lookup: dict) -> list:
+    """
+    Coste OBSERVADO de la doble matanza, en carreras.
+
+        valor = carreras de la jugada + RE(estado final) - RE(estado inicial)
+
+    y lo que se publica es ese valor MENOS el del out sencillo comparable en el
+    mismo estado base-out. Es lo que el usuario pidio: cuanto cuesta rodar a
+    doble play FRENTE A un out normal.
+
+    DOS DECISIONES QUE NO SON COSMETICAS.
+
+    1) Con tres outs la entrada se acaba: RE(estado final) es 0, no hay que
+       buscarlo en la matriz. Sin esto el valor del doble play con un out sale
+       disparatado, porque la matriz no tiene entrada para tres outs.
+
+    2) EL BRAZO DE COMPARACION SE ACOTA A RODADOS Y A UN SOLO OUT. Sin acotar a
+       rodados se llena de elevados, que nunca pudieron ser doble play: con
+       corredor en tercera y cero outs ese brazo anota 0,603 carreras porque son
+       flies de sacrificio, contra 0,699 en rodados. Y `EVENT_OUTS_CT = 1` deja
+       fuera ocho eventos por temporada que suman dos outs sin llevar DP_FL --son
+       dobles matanzas sin marcar, y colarlos en el brazo del "out sencillo"
+       ensucia justo lo que se quiere medir.
+
+    El valor del doble play SI usa toda la poblacion: ahi no hay que elegir el
+    tipo de batazo, porque el suceso ya ocurrio.
+    """
+    if not len(gidp_df):
+        return []
+
+    df = gidp_df.copy()
+    df["re_pre"] = [
+        re_lookup.get((s, int(o), r))
+        for s, o, r in zip(df["season"], df["outs"], df["runners"], strict=True)
+    ]
+    df["re_post"] = [
+        0.0 if int(of) >= 3 else re_lookup.get((s, int(of), rf))
+        for s, of, rf in zip(df["season"], df["outs_fin"], df["runners_fin"], strict=True)
+    ]
+    df = df.dropna(subset=["re_pre", "re_post"])
+    if not len(df):
+        return []
+
+    df["valor"] = df["carreras"] + df["re_post"] - df["re_pre"]
+
+    def media(sub: pd.DataFrame) -> tuple:
+        n = int(sub["n"].sum())
+        return ((sub["valor"] * sub["n"]).sum() / n, n) if n else (None, 0)
+
+    rows = []
+    for (season, outs, runners), grupo in df.groupby(["season", "outs", "runners"]):
+        label = dict(GIDP_SCENARIOS).get(runners)
+        if label is None:
+            continue
+        valor_dp, n_dp = media(grupo[grupo["es_dp"] == 1])
+        valor_out, n_out = media(grupo[
+            (grupo["es_dp"] == 0)
+            & (grupo["outs_fin"] - grupo["outs"] == 1)
+            & (grupo["tipo_batazo"] == "G")
+        ])
+        if valor_dp is None or valor_out is None:
+            continue
+        re_pre = re_lookup.get((season, int(outs), runners))
+        delta_re = valor_dp - valor_out
+        rows.append({
+            "season":   int(season),
+            "type":     "gidp",
+            "scenario": runners,
+            "label":    label,
+            "outs":     int(outs),
+            "delta_re": delta_re,
+            "baseline_re": re_pre,
+            "delta_re_pct": (delta_re / re_pre) if re_pre else None,
+            "n":        n_dp,
+        })
+    return rows
+
+
+def load_gidp_rows_from_db(re_lookup: dict) -> list:
+    """Lee la rejilla de dobles matanzas y la convierte en filas de carreras."""
+    log.info("")
+    log.info("Extracting GIDP rows from SQL view...")
+    engine = connect_to_database()
+    gidp_df = _read_sql_view(engine, QUERY_GIDP, "dbo.v_re_analysis_gidp")
+    rows = calculate_gidp_impact(gidp_df, re_lookup)
+    log.info(f"  Normalized GIDP impact rows: {len(rows):,}")
+    return rows
 
 
 def load_tag_up_break_even_rows_from_db() -> list:
@@ -2724,8 +2829,12 @@ def main(data_dir=None):
     # juega uno. Robo, estirar el batazo y tag-up.
     steal_runs_rows = load_steal_impact_rows_from_db(re_lookup, temporadas)
 
+    # Doble matanza: coste observado frente al out sencillo comparable (8.7).
+    gidp_rows = load_gidp_rows_from_db(re_lookup)
+
     all_impact = (sac_bunt_impact_rows + ibb_rows + ph_rows + platoon_baseline_rows
-                  + tto_impact_rows + steal_runs_rows + stretch_runs + tagging_runs)
+                  + tto_impact_rows + steal_runs_rows + stretch_runs + tagging_runs
+                  + gidp_rows)
     df_impact = save_re_impact(all_impact, data_dir)
 
     # RE288-based: SB break-even by count

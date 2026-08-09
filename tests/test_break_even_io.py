@@ -653,6 +653,7 @@ def pipeline_falso(monkeypatch, tmp_path):
         monkeypatch.setattr(be, nombre, lambda *a, **k: (be_falso(), []))
 
     monkeypatch.setattr(be, "load_steal_impact_rows_from_db", lambda *a, **k: [])
+    monkeypatch.setattr(be, "load_gidp_rows_from_db", lambda *a, **k: [])
 
     for nombre in ("load_ph_impact_rows_from_db",
                    "load_platoon_baseline_impact_rows_from_db",
@@ -1113,7 +1114,8 @@ def pipeline_de_otra_temporada(monkeypatch, tmp_path):
                    "load_ph_impact_rows_from_db",
                    "load_platoon_baseline_impact_rows_from_db",
                    "load_tto_impact_rows_from_db",
-                   "load_steal_impact_rows_from_db"):
+                   "load_steal_impact_rows_from_db",
+                   "load_gidp_rows_from_db"):
         monkeypatch.setattr(be, nombre, lambda *a, **k: list(vacio))
 
     for nombre in ("load_stretch_rows_from_db", "load_tag_up_rows_from_db",

@@ -2072,3 +2072,117 @@ def test_una_celda_sin_un_solo_intento_no_se_publica():
     ])
 
     assert be.calculate_running_impact(df) == []
+
+
+# ---------------------------------------------------------------------------
+# GIDP: coste de la doble matanza (8.7)
+# ---------------------------------------------------------------------------
+
+def _re_lookup_gidp():
+    """RE24 de 2025 recortada a lo que usan estos tests."""
+    return {
+        (2025, 0, "100"): 0.895, (2025, 1, "100"): 0.520, (2025, 2, "100"): 0.230,
+        (2025, 0, "101"): 1.857, (2025, 1, "101"): 1.232,
+        (2025, 2, "000"): 0.105, (2025, 2, "001"): 0.370,
+    }
+
+
+def _fila_gidp(**kw):
+    base = dict(season=2025, outs=0, runners="100", es_dp=1, tipo_batazo="G",
+                runners_fin="000", outs_fin=2, carreras=0, n=1)
+    base.update(kw)
+    return base
+
+
+def test_gidp_el_valor_del_doble_play_sale_de_la_matriz():
+    """valor = carreras + RE(final) - RE(inicial). Con 100/0 outs: 0 + 0.105 - 0.895."""
+    from utils.create_break_even_points import calculate_gidp_impact
+
+    df = pd.DataFrame([
+        _fila_gidp(n=100),
+        _fila_gidp(es_dp=0, outs_fin=1, runners_fin="100", n=100),
+    ])
+    filas = calculate_gidp_impact(df, _re_lookup_gidp())
+
+    assert len(filas) == 1
+    # DP: 0.105 - 0.895 = -0.790.  Un out: 0.520 - 0.895 = -0.375.
+    assert filas[0]["delta_re"] == pytest.approx(-0.790 - (-0.375), abs=1e-9)
+
+
+def test_gidp_con_tres_outs_la_entrada_se_acaba_y_la_RE_posterior_es_cero():
+    """
+    LA TRAMPA. La matriz RE24 no tiene entrada para tres outs: si se busca ahi,
+    el valor sale None y la fila desaparece en silencio. Con un out, un doble
+    play cierra la entrada y el valor tiene que ser EXACTAMENTE menos la RE
+    inicial.
+    """
+    from utils.create_break_even_points import calculate_gidp_impact
+
+    df = pd.DataFrame([
+        _fila_gidp(outs=1, outs_fin=3, runners_fin="000", n=50),
+        _fila_gidp(outs=1, es_dp=0, outs_fin=2, runners_fin="100", n=50),
+    ])
+    filas = calculate_gidp_impact(df, _re_lookup_gidp())
+
+    assert len(filas) == 1, "la fila se perdio: se busco RE para tres outs"
+    valor_un_out = 0.230 - 0.520
+    assert filas[0]["delta_re"] == pytest.approx(-0.520 - valor_un_out, abs=1e-9)
+
+
+def test_gidp_el_brazo_de_comparacion_ignora_los_elevados():
+    """
+    Un elevado NUNCA pudo ser doble play. Si entra en el brazo de comparacion,
+    mete los flies de sacrificio y el contraste mide otra cosa: medido en 2025,
+    ese brazo pasa de 0,699 carreras en rodados a 0,603 con todo.
+    """
+    from utils.create_break_even_points import calculate_gidp_impact
+
+    df = pd.DataFrame([
+        _fila_gidp(n=10),
+        _fila_gidp(es_dp=0, outs_fin=1, runners_fin="100", tipo_batazo="G", n=10),
+        # Un elevado que anota una carrera: si se cuela, mueve el resultado.
+        _fila_gidp(es_dp=0, outs_fin=1, runners_fin="100", tipo_batazo="F",
+                   carreras=1, n=10),
+    ])
+    filas = calculate_gidp_impact(df, _re_lookup_gidp())
+
+    assert filas[0]["delta_re"] == pytest.approx(-0.790 - (-0.375), abs=1e-9)
+
+
+def test_gidp_el_brazo_de_comparacion_exige_UN_SOLO_out():
+    """
+    Ocho eventos por temporada suman dos outs sin llevar DP_FL. Son dobles
+    matanzas sin marcar: en el brazo del "out sencillo" ensucian justo lo que se
+    quiere medir.
+    """
+    from utils.create_break_even_points import calculate_gidp_impact
+
+    df = pd.DataFrame([
+        _fila_gidp(n=10),
+        _fila_gidp(es_dp=0, outs_fin=1, runners_fin="100", n=10),
+        _fila_gidp(es_dp=0, outs_fin=2, runners_fin="000", n=10),  # dos outs, sin DP_FL
+    ])
+    filas = calculate_gidp_impact(df, _re_lookup_gidp())
+
+    assert filas[0]["delta_re"] == pytest.approx(-0.790 - (-0.375), abs=1e-9)
+
+
+def test_gidp_solo_publica_los_estados_con_forzado_en_primera():
+    """Sin corredor en primera la tasa de doble play es del 0 al 2%: no hay jugada."""
+    from utils.create_break_even_points import calculate_gidp_impact
+
+    df = pd.DataFrame([
+        _fila_gidp(runners="001", runners_fin="000", n=10),
+        _fila_gidp(runners="001", es_dp=0, outs_fin=1, runners_fin="001", n=10),
+    ])
+
+    assert calculate_gidp_impact(df, _re_lookup_gidp()) == []
+
+
+def test_gidp_sin_brazo_de_comparacion_no_inventa_la_fila():
+    """Sin out sencillo con el que comparar no hay coste que publicar."""
+    from utils.create_break_even_points import calculate_gidp_impact
+
+    df = pd.DataFrame([_fila_gidp(n=10)])
+
+    assert calculate_gidp_impact(df, _re_lookup_gidp()) == []
