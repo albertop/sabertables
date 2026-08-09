@@ -2151,9 +2151,13 @@ menciona www.
 
 ## 10. Llevar robo, avance y tag-up a RE Impact, en carreras (9 ago 2026)
 
-**Petición.** Los tres análisis de Break-Even Points que hoy se presentan como
-porcentaje —Stolen Bases, Base Running y Tag-up— pasar a mostrarlos también en
+**Petición.** AÑADIR los tres análisis —Stolen Bases, Base Running y Tag-up— a
 **RE Impact Analysis**, expresados en **carreras**.
+
+**No se quita nada.** Los tres siguen igual en Break-Even Points, con su
+porcentaje. Son dos lecturas del mismo número y las dos tienen público: "¿qué
+tasa de éxito necesito?" y "¿cuántas carreras me juego?". La segunda es la que
+falta.
 
 ### 10.1 Por qué merece la pena
 
@@ -2236,9 +2240,8 @@ invariante precioso: **las dos tablas tienen que cuadrar**. Un test que recalcul
 el BE desde las carreras publicadas y lo compare con el de `breakeven_points`
 detecta cualquier divergencia entre las dos vistas del mismo número.
 
-**Qué NO cambia:** la tabla de Break-Even Points se queda como está. Son dos
-lecturas de lo mismo y las dos tienen público: "¿qué tasa necesito?" y "¿cuánto
-me juego?".
+**Qué NO cambia:** Break-Even Points se queda exactamente como está, con sus
+seis tipos. Esto solo añade.
 
 ---
 ## 9. Revisiones externas v06 y v07 — validadas el 8 ago 2026
