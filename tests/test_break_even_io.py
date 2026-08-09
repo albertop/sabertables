@@ -638,13 +638,20 @@ def pipeline_falso(monkeypatch, tmp_path):
             for t in ("ibb", "ph_position", "ph_pitcher")
         ]
 
-    for nombre in ("load_stretch_break_even_rows_from_db",
-                   "load_advance_break_even_rows_from_db",
-                   "load_tag_up_break_even_rows_from_db",
+    for nombre in ("load_advance_break_even_rows_from_db",
                    "load_bunt_break_even_rows_from_db",
                    "load_swing_take_break_even_rows_from_db",
                    "load_swing_take_zone_break_even_rows_from_db"):
         monkeypatch.setattr(be, nombre, be_falso)
+
+    # Estos DEVUELVEN TUPLA (break-even, carreras) y hacen una sola consulta.
+    # Si se parchean los cargadores viejos, main() llama igualmente a estos y se
+    # conecta a SQL Server de verdad: la suite paso de 15 segundos a casi cinco
+    # minutos antes de darnos cuenta.
+    for nombre in ("load_stretch_rows_from_db", "load_tag_up_rows_from_db"):
+        monkeypatch.setattr(be, nombre, lambda *a, **k: (be_falso(), []))
+
+    monkeypatch.setattr(be, "load_steal_impact_rows_from_db", lambda *a, **k: [])
 
     for nombre in ("load_ph_impact_rows_from_db",
                    "load_platoon_baseline_impact_rows_from_db",
@@ -1098,16 +1105,18 @@ def pipeline_de_otra_temporada(monkeypatch, tmp_path):
     ]).to_parquet(tmp_path / "re288_values.parquet", index=False)
 
     vacio = []
-    for nombre in ("load_stretch_break_even_rows_from_db",
-                   "load_advance_break_even_rows_from_db",
-                   "load_tag_up_break_even_rows_from_db",
+    for nombre in ("load_advance_break_even_rows_from_db",
                    "load_bunt_break_even_rows_from_db",
                    "load_swing_take_break_even_rows_from_db",
                    "load_swing_take_zone_break_even_rows_from_db",
                    "load_ph_impact_rows_from_db",
                    "load_platoon_baseline_impact_rows_from_db",
-                   "load_tto_impact_rows_from_db"):
+                   "load_tto_impact_rows_from_db",
+                   "load_steal_impact_rows_from_db"):
         monkeypatch.setattr(be, nombre, lambda *a, **k: list(vacio))
+
+    for nombre in ("load_stretch_rows_from_db", "load_tag_up_rows_from_db"):
+        monkeypatch.setattr(be, nombre, lambda *a, **k: ([], []))
 
     return tmp_path
 
@@ -1351,3 +1360,53 @@ def test_una_celda_con_cero_intentos_no_divide_por_cero(vistas):
     }])}
 
     assert be.load_steal_impact_rows_from_db(_re_robo(), [2024]) == []
+
+
+def test_el_pipeline_no_abre_ninguna_conexion(pipeline_falso, monkeypatch):
+    """
+    Ningun test debe tocar SQL Server. Cuando main() empezo a llamar a
+    load_stretch_rows_from_db --nuevo, devuelve tupla-- las fixtures seguian
+    parcheando el cargador viejo, asi que la suite se conectaba de verdad y paso
+    de 15 segundos a casi cinco minutos. Tardamos en verlo porque los tests
+    seguian en verde.
+
+    Este test lo convierte en un fallo inmediato en vez de una lentitud rara.
+    """
+    def prohibido():
+        raise AssertionError("un test intento conectar a SQL Server")
+
+    monkeypatch.setattr(be, "connect_to_database", prohibido)
+
+    be.main(data_dir=pipeline_falso)
+
+
+def test_estirar_el_batazo_consulta_UNA_vez_y_da_las_dos_familias(vistas):
+    """
+    La vista es lenta. Un cargador por familia la consultaria dos veces para
+    sacar de los mismos tres cubos el umbral y las carreras.
+    """
+    vistas["respuestas"] = {"stretch": _estirar()}
+
+    umbral, carreras = be.load_stretch_rows_from_db()
+
+    assert len([v for v in vistas["consultadas"] if "stretch" in v]) == 1
+    assert umbral and carreras
+    assert umbral[0]["type"] == be.BREAKEVEN_TYPE_RUNNING
+    assert carreras[0]["type"] == "running_runs"
+
+
+def test_el_tag_up_tambien_consulta_una_sola_vez(vistas):
+    # El cubo de quedarse se llama `stay` en tag-up, no `stop`.
+    tag = pd.DataFrame([
+        {"season": 2024, "outs": 1, "direction": "home", "runners": "001",
+         "bucket": b, "n": n, "mean_rv": rv, "sd_rv": 0.2}
+        for b, (n, rv) in {"stay": (500, 0.26), "success": (300, 0.43),
+                           "fail": (40, -0.15)}.items()
+    ])
+    vistas["respuestas"] = {"tag_up": tag}
+
+    umbral, carreras = be.load_tag_up_rows_from_db()
+
+    assert len([v for v in vistas["consultadas"] if "tag_up" in v]) == 1
+    assert umbral and carreras
+    assert carreras[0]["type"] == "tagging_runs"

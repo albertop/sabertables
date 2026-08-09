@@ -1118,6 +1118,30 @@ def calculate_tagging_breakeven(tag_df: pd.DataFrame) -> list:
     return rows
 
 
+def load_stretch_rows_from_db() -> tuple:
+    """
+    Una sola consulta, las DOS familias: break-even y carreras.
+
+    La vista de estirar el batazo es lenta y sus tres cubos sirven para las dos
+    cosas. Llamar por separado a los dos cargadores la consultaria dos veces
+    para nada.
+    """
+    log.info("")
+    log.info("Extracting stretch rows from SQL view...")
+    engine = connect_to_database()
+    stretch_df = _read_sql_view(engine, QUERY_STRETCH, "dbo.v_re_analysis_stretch")
+    return calculate_running_breakeven(stretch_df), calculate_running_impact(stretch_df)
+
+
+def load_tag_up_rows_from_db() -> tuple:
+    """Una sola consulta, break-even y carreras. Ver load_stretch_rows_from_db."""
+    log.info("")
+    log.info("Extracting tag-up rows from SQL view...")
+    engine = connect_to_database()
+    tag_df = _read_sql_view(engine, QUERY_TAG_UP, "dbo.v_re_analysis_tag_up")
+    return calculate_tagging_breakeven(tag_df), calculate_tagging_impact(tag_df)
+
+
 def load_tag_up_break_even_rows_from_db() -> list:
     """Lee los elevados atrapados de la vista y los convierte en filas de break-even."""
     log.info("")
@@ -2443,7 +2467,10 @@ def save_re_impact(rows: list, data_dir: Path) -> pd.DataFrame:
     # contexto de si un delta de +0.02 es mucho o poco.
     keep_cols = [
         "season", "type", "scenario", "label", "outs", "delta_re",
-        "baseline_re", "delta_re_pct", "n", "platoon", "handedness_split", "tto_pass"
+        "baseline_re", "delta_re_pct", "n", "platoon", "handedness_split", "tto_pass",
+        # Solo las traen los tipos *_runs: la ganancia si sale bien y el coste si
+        # sale mal. El break-even las reduce a un cociente y pierde la magnitud.
+        "gain_runs", "cost_runs"
     ]
     # reindex CREA todas las columnas de keep_cols, las traigan las filas o
     # no. Aqui habia seis `if "x" not in df.columns` justo despues, uno por
@@ -2466,6 +2493,8 @@ def save_re_impact(rows: list, data_dir: Path) -> pd.DataFrame:
     df["handedness_split"] = df["handedness_split"].astype("string")
     # Optional TTO pass label for tto rows.
     df["tto_pass"] = df["tto_pass"].astype("string")
+    df["gain_runs"] = df["gain_runs"].astype("Float32")
+    df["cost_runs"] = df["cost_runs"].astype("Float32")
     output_file = data_dir / "re_impact.parquet"
     # La clave incluye handedness_split y tto_pass porque sin ellas no identifica
     # una fila de forma unica: las filas ph se distinguen por handedness y las tto
@@ -2600,8 +2629,10 @@ def main(data_dir=None):
     temporadas = sorted(re24["season"].unique())
 
     sb_rows      = calculate_sb_breakeven(re_lookup, n_lookup, temporadas)
-    running_rows = load_stretch_break_even_rows_from_db() + load_advance_break_even_rows_from_db()
-    tagging_rows = load_tag_up_break_even_rows_from_db()
+    stretch_be, stretch_runs = load_stretch_rows_from_db()
+    running_rows = stretch_be + load_advance_break_even_rows_from_db()
+    tagging_be, tagging_runs = load_tag_up_rows_from_db()
+    tagging_rows = tagging_be
     bunt_for_hit_be_rows = load_bunt_break_even_rows_from_db()
     # El tope sale del parametro y NO del maximo del parquet de re24.
     # Derivarlo del dato hacia que el rango publicado cambiara solo en cuanto
@@ -2628,7 +2659,13 @@ def main(data_dir=None):
 
     all_breakeven = sb_rows + running_rows + tagging_rows + bunt_for_hit_be_rows + swing_take_be_rows + swing_take_zone_rows
     df_be  = save_breakeven_points(all_breakeven, data_dir)
-    all_impact = sac_bunt_impact_rows + ibb_rows + ph_rows + platoon_baseline_rows + tto_impact_rows
+    # Los tres analisis de break-even, tambien en CARRERAS (seccion 10 del TODO):
+    # el break-even dice que tasa hace falta, estas filas cuantas carreras se
+    # juega uno. Robo, estirar el batazo y tag-up.
+    steal_runs_rows = load_steal_impact_rows_from_db(re_lookup, temporadas)
+
+    all_impact = (sac_bunt_impact_rows + ibb_rows + ph_rows + platoon_baseline_rows
+                  + tto_impact_rows + steal_runs_rows + stretch_runs + tagging_runs)
     df_impact = save_re_impact(all_impact, data_dir)
 
     # RE288-based: SB break-even by count
