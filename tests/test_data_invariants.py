@@ -68,7 +68,7 @@ MIN_IBB_N = 30
 def _load(filename: str) -> pd.DataFrame:
     path = DATA_DIR / filename
     if not path.exists():
-        pytest.skip(f'{filename} no existe; genera los datos con utils/ primero')
+        pytest.fail(f'{filename} no existe. Los parquets estan versionados en git, asi que su ausencia significa que algo se borro o que el pipeline fallo -- no es motivo para dar el test por bueno.')
     return pd.read_parquet(path)
 
 
@@ -250,7 +250,7 @@ def test_datos_derivados_no_estan_obsoletos():
     """
     manifest_path = DATA_DIR / 'derived_from.json'
     if not manifest_path.exists():
-        pytest.skip('sin derived_from.json; ejecuta utils/create_break_even_points.py')
+        pytest.fail('sin derived_from.json. Sin el no se puede comprobar que las tablas derivadas correspondan a la matriz publicada, que es justo lo que este test existe para vigilar.')
 
     manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
     recorded = manifest.get('inputs', {})
@@ -334,7 +334,7 @@ def test_escenarios_publicados_casan_con_los_que_la_ui_espera(breakeven, be_type
     columnas, no valores.
     """
     if not APP_JS.exists():
-        pytest.skip('app.js no encontrado')
+        pytest.fail('app.js no encontrado; sin el no se puede comprobar el contrato entre los datos y lo que el frontend declara.')
 
     expected = set(_js_breakeven_scenarios()[be_type])
     published = set(breakeven.loc[breakeven['type'] == be_type, 'scenario'].dropna().unique())
@@ -371,7 +371,7 @@ def test_escenarios_de_sac_bunt_casan_con_la_ui(re_impact):
     import re
 
     if not APP_JS.exists():
-        pytest.skip('app.js no encontrado')
+        pytest.fail('app.js no encontrado; sin el no se puede comprobar el contrato entre los datos y lo que el frontend declara.')
 
     source = APP_JS.read_text(encoding='utf-8')
     block = re.search(r'const SAC_BUNT_RE_SCENARIOS = \[(.*?)\];', source, re.S)
@@ -418,7 +418,7 @@ def test_contrato_de_esquema_entre_parquet_y_app(dataset, monkeypatch):
     aplicacion aplica de verdad.
     """
     if not DATA_DIR.exists():
-        pytest.skip('sin datos generados')
+        pytest.fail('sin datos generados; los parquets estan versionados y deberian estar aqui.')
 
     from app import main as app_main
     from app.main import data_store, ensure_data_loaded
@@ -503,7 +503,7 @@ def test_ninguna_columna_se_publica_sin_tipo_declarado(key, output, dtypes):
     """
     path = DATA_DIR / output
     if not path.exists():
-        pytest.skip(f'sin {output} generado')
+        pytest.fail(f'sin {output} generado; esta versionado y deberia estar aqui.')
 
     columnas = pd.read_parquet(path).columns
     sin_declarar = [c for c in columnas if c not in dtypes]
@@ -746,7 +746,7 @@ def test_ninguna_tabla_re288_baja_del_suelo_de_temporada(fichero):
 
     ruta = DATA_DIR / fichero
     if not ruta.exists():
-        pytest.skip(f'sin {fichero} generado')
+        pytest.fail(f'sin {fichero} generado; esta versionado y deberia estar aqui.')
 
     df = pd.read_parquet(ruta, columns=['season'])
     minima = int(df['season'].min())

@@ -2219,7 +2219,41 @@ señala un fallo: estructura de los errores 4xx además del código, concurrenci
 más de un dataset, cabeceras de proxy ambiguas, reintento parcial del pipeline y
 contrato entre la configuración de la app y la del despliegue.
 
-### 9.3 Plan de trabajo
+### 9.3 Plan de trabajo — EJECUTADO (8 ago 2026)
+
+Los cinco puntos hechos. 685 tests, 100% de cobertura, todo verificado por
+mutación.
+
+| | resultado |
+|---|---|
+| CR-06-01 servidor con puerto | separador a punto y coma, coma por compatibilidad |
+| CR-06-02 dataset vacío | `allow_empty=False` en la validación de arranque |
+| CR-06-03 estados de corredores | validados contra los ocho canónicos en los cuatro sitios |
+| CR-06-05 accesibilidad | `aria-labelledby` en las catorce tablas |
+| CR-06-07 media ponderada | cuatro copias unificadas en `media_ponderada_por_grupo` |
+| v07 `pytest.skip` | siete convertidos en fallo; siete se quedan |
+
+**Lo que hubo que decidir por el camino:**
+
+- **CR-06-03 cambia el comportamiento**: antes un estado de corredores
+  desconocido se mostraba crudo en la tabla; ahora aborta la generación. Había un
+  test que fijaba lo anterior y se reescribió con el motivo. Enseñar `999`
+  avisaba a quien mirara esa fila, pero no de las demás: un estado inventado no
+  se queda en su celda, contamina el lookup de RE24 y RE288.
+- **CR-06-07 verificado contra producción**, que corre el código anterior: Win
+  Expectancy, WPA y Leverage Index de 2020-2025 salen fila por fila idénticos.
+- **`media_ponderada_por_grupo` se queda sin anotación de tipo de retorno**. Con
+  ella, mypy estrecha la inferencia y da por inalcanzables las ramas que producen
+  las cabeceras `-4+`, `Tie` y `+4+`, que sí se alcanzan. Sale más barato que
+  tres `type: ignore`.
+- **De los 14 `pytest.skip` solo se convirtieron 7.** Los otros siete se saltan
+  por *falta de filas de una porción concreta* —un tipo de break-even sin datos
+  en cierta temporada—, que es condicional del dato y legítimo. Los convertidos
+  son los que se saltaban por *fichero ausente*, y esos sí: los parquets están
+  versionados, así que su ausencia significa que algo se rompió. Comprobado
+  escondiendo un parquet: la suite se pone **roja** en vez de verde con saltos.
+
+### 9.4 Plan original
 
 **Primero, lo que es un defecto y se arregla solo:**
 

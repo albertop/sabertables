@@ -1238,3 +1238,45 @@ def test_www_sigue_aceptandose_como_Host(client):
     # Y el valor efectivo, que es el que de verdad decide si entra la peticion.
     assert "www.sabertables.com" in ALLOWED_HOSTS
     assert "sabertables.com" in ALLOWED_HOSTS
+
+
+# ---------------------------------------------------------------------------
+# Nombre accesible de las tablas (CR-06-05)
+# ---------------------------------------------------------------------------
+
+def test_todas_las_tablas_tienen_nombre_accesible(client):
+    """
+    El titulo se pinta FUERA del <table>, asi que un lector de pantalla anuncia
+    "tabla" sin mas. La pagina tiene catorce, todas parecidas y varias que
+    aparecen y desaparecen segun lo que elijas: sin nombre no hay forma de saber
+    en cual estas.
+
+    `aria-labelledby` apuntando al titulo lo resuelve sin cambiar nada visual.
+    """
+    import re
+
+    html = _head(client)
+    tablas = re.findall(r"<table[^>]*>", html)
+
+    sin_nombre = [t for t in tablas
+                  if "aria-labelledby" not in t and "aria-label" not in t]
+
+    assert tablas, "no hay tablas; el test no esta mirando nada"
+    assert not sin_nombre, f"{len(sin_nombre)} tablas sin nombre accesible"
+
+
+def test_el_nombre_accesible_apunta_a_un_elemento_que_existe(client):
+    """
+    Un aria-labelledby que apunta a un id inexistente es peor que no ponerlo:
+    el lector no anuncia nada y parece que si esta resuelto.
+    """
+    import re
+
+    html = _head(client)
+    referidos = re.findall(r'<table[^>]*aria-labelledby="([^"]+)"', html)
+    ids = set(re.findall(r'id="([^"]+)"', html))
+
+    assert referidos
+    for destino in referidos:
+        for parte in destino.split():
+            assert parte in ids, f"aria-labelledby apunta a un id que no existe: {parte}"
