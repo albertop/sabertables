@@ -2651,3 +2651,38 @@ carrera no cuenta.
 
 Es el mismo suceso con el signo cambiado según los outs. Eso es exactamente lo
 que una tabla por estado base-out enseña y un promedio global esconde.
+
+#### La vista, y lo que enseñó al medirla (9 ago 2026)
+
+`utils/sql/22_v_re_analysis_gidp.sql`, aplicada. Devuelve la rejilla contada
+—temporada × bases × outs × doble o sencillo × tipo de batazo × estado final ×
+carreras— y **no calcula `delta_re`**: la expectativa vive en el parquet de RE24
+y se aplica en Python, como en el resto del proyecto.
+
+**El tipo de batazo acabó siendo columna, no filtro, y eso se decidió midiendo.**
+La primera versión definía la población sin `BATTEDBALL_CD` para no perder un
+tercio de las oportunidades. Al validarla apareció el problema: sin el tipo, el
+brazo de comparación —el out sencillo— **se llena de elevados, que nunca pudieron
+ser doble play**. Con corredor en tercera y cero outs ese brazo anotaba 0,603
+carreras porque son flies de sacrificio; acotado a rodados sube a 0,699, y el
+contraste contra la doble matanza cambia de tamaño.
+
+Con la columna se tienen las dos cosas: el valor de la doble matanza sobre toda
+la población, y el contraste acotado a rodados donde el código existe.
+
+**Validación (2025):** 0 filas con `outs_fin` inválido, 0 dobles matanzas que
+sumen un solo out, y tras un doble play forzado en `100` con 0 outs el estado
+final es `000` en las 996 —el bateador no se queda en primera cuando el forzado
+es él—. Ocho eventos de 11.794 suman dos outs sin llevar `DP_FL`; el brazo de
+comparación se acotará a `EVENT_OUTS_CT = 1` para que sea de verdad "un out".
+
+**Ojo con el suelo de temporada:** la vista devuelve desde 1903, igual que las
+demás; el recorte a `MIN_SEASON` lo hace el pipeline, no el SQL.
+
+#### Lo que queda
+
+1. `load_gidp_rows_from_db()` y el cálculo del `delta_re` observado, con
+   `re_lookup`, incluida la entrada que vale 0 cuando el tercer out cierra la
+   entrada.
+2. El tipo `gidp` en `re_impact.parquet` y en las **seis** cadenas de `app.js`.
+3. Tests: los de datos, y los de navegador con la tabla pintada y el rombo.
