@@ -6974,6 +6974,15 @@ function renderReImpactPage() {
             key = `${row.handedness_split}|${row.outs}`;
         } else if (analysisType === 'tto') {
             key = `${row.scenario}|${row.handedness_split}|${row.tto_pass}`;
+        } else if (analysisType === 'steal_runs' || analysisType === 'running_runs'
+                   || analysisType === 'tagging_runs') {
+            // Misma forma que sac_bunt: un escenario por estado de outs.
+            //
+            // SIN ESTA RAMA la clave queda undefined, el pivote no agrega nada
+            // y la tabla sale EN BLANCO -- sin ningun error, y con la API
+            // devolviendo 200. Anadir el tipo al modelo, al filtro de filas y al
+            // selector no basta: hay que darle su clave de pivote.
+            key = `${row.scenario}|${row.outs}`;
         }
         
         if (!aggregated[key]) {
@@ -7032,7 +7041,37 @@ function renderReImpactPage() {
     
     // Pivot display_data for CSV download (scenario-based rows with outs as columns)
     const pivotedData = [];
-    if (analysisType === 'sac_bunt') {
+    if (analysisType === 'steal_runs' || analysisType === 'running_runs'
+        || analysisType === 'tagging_runs') {
+        // Los escenarios se DERIVAN de los datos, no van escritos aqui.
+        //
+        // Las otras ramas llevan su lista a mano ('100','010','110'...), que
+        // funciona porque son conjuntos cerrados. Estos tres no lo son: los
+        // escenarios de tag-up dependen del estado de corredores y los de
+        // estirar el batazo de la direccion, asi que una lista fija se quedaria
+        // corta en cuanto la vista devolviera uno mas.
+        //
+        // SIN ESTA RAMA pivotedData queda VACIA y la tabla se pinta sin filas:
+        // sin error, con la API en 200 y el titulo correcto. Fue exactamente lo
+        // que paso.
+        const vistos = [];
+        displayData.forEach(d => { if (!vistos.includes(d.scenario)) vistos.push(d.scenario); });
+        vistos.forEach(scenario => {
+            const outs0 = displayData.find(d => d.scenario === scenario && d.outs === 0);
+            const outs1 = displayData.find(d => d.scenario === scenario && d.outs === 1);
+            const outs2 = displayData.find(d => d.scenario === scenario && d.outs === 2);
+            pivotedData.push({
+                scenario: scenario,
+                label: outs0?.label || outs1?.label || outs2?.label || scenario,
+                outs_0: outs0 ? outs0.delta_re : null,
+                outs_1: outs1 ? outs1.delta_re : null,
+                outs_2: outs2 ? outs2.delta_re : null,
+                outs_0_n: outs0 ? outs0.n : 0,
+                outs_1_n: outs1 ? outs1.n : 0,
+                outs_2_n: outs2 ? outs2.n : 0
+            });
+        });
+    } else if (analysisType === 'sac_bunt') {
         const scenarios = ['100', '010', '110'];  // Fixed: 010 not 020
         scenarios.forEach(scenario => {
             const outs0 = displayData.find(d => d.scenario === scenario && d.outs === 0);
@@ -7274,7 +7313,10 @@ function renderReImpactPage() {
         'ph_position': 'PH for Position Player',
         'ph_pitcher': 'PH for Pitchers',
         'platoon_baseline': 'Pitcher-Batter Matchup',
-        'tto': 'Pitcher-Batter Times Faced'
+        'tto': 'Pitcher-Batter Times Faced',
+        'steal_runs': 'Stolen Bases',
+        'running_runs': 'Base Running',
+        'tagging_runs': 'Tag-up'
     }[analysisType] || analysisType;
     const analysisTypeFooterLabel = {
         'sac_bunt': 'sacrifice bunt',
@@ -7282,7 +7324,10 @@ function renderReImpactPage() {
         'ph_position': 'PH for position player',
         'ph_pitcher': 'PH for pitchers',
         'platoon_baseline': 'pitcher-batter matchup',
-        'tto': 'pitcher-batter times faced'
+        'tto': 'pitcher-batter times faced',
+        'steal_runs': 'stolen bases',
+        'running_runs': 'base running',
+        'tagging_runs': 'tag-up'
     }[analysisType] || analysisTypeLabel;
     
     let titleHTML = `RE Impact Analysis - <span class="primary-badge">${analysisTypeLabel}</span> - `;
@@ -7328,6 +7373,15 @@ function renderReImpactPage() {
         renderReImpactPlatoonMatchupTable(headEl, bodyEl, pivotedData, stored.display_mode, reliabilityStats);
     } else if (analysisType === 'tto') {
         renderReImpactTtoTable(headEl, bodyEl, pivotedData, stored.display_mode, reliabilityStats);
+    } else if (analysisType === 'steal_runs' || analysisType === 'running_runs'
+               || analysisType === 'tagging_runs') {
+        // Misma forma que sac_bunt: escenario por filas, outs por columnas.
+        //
+        // ESTA ES LA CADENA QUE DE VERDAD PINTA. Sin rama aqui no se llama a
+        // ninguna funcion de dibujado y el cuerpo de la tabla se queda vacio:
+        // sin error, con la API en 200, el titulo correcto y las cabeceras
+        // puestas. Fue el ultimo de los sitios que habia que tocar.
+        renderReImpactSacBuntTable(headEl, bodyEl, pivotedData, stored.display_mode, reliabilityStats);
     }
     
     // Scroll to table
@@ -7404,6 +7458,16 @@ function getOneSidedWeight(percentile, config = RELIABILITY_DEFAULT_CONFIG) {
     const lambda = Math.max(0, Math.min(1, Number(config.strictLambda) || 0));
     const alpha = Math.max(0.25, Number(config.strictAlpha) || 1);
     return lambda + (1 - lambda) * Math.pow(p, alpha);
+}
+
+function marcadorFiabilidadHtml(markerText) {
+    // Un punto por nivel: uno = confianza media, dos = baja. Se dibujan con CSS
+    // (.reliability-marker) y NO con los caracteres U+25CF / U+2022, que
+    // dependen de que la tipografia tenga el glifo -- cuando no lo tiene salen
+    // rombos blancos, que es lo que se veia.
+    if (!markerText) return '';
+    const puntos = markerText.length >= 2 ? 2 : 1;
+    return `<span class="reliability-marker">${'<span></span>'.repeat(puntos)}</span>`;
 }
 
 function getReliabilityMeta(nValue, stats, config = RELIABILITY_DEFAULT_CONFIG) {
@@ -7513,7 +7577,7 @@ function renderMetricCellWithReliability(value, nValue, {
     const titleAttr = reliability.title ? ` title="${reliability.title}"` : '';
     const markerColor = bgColor ? textColor : 'currentColor';
     const markerHtml = reliability.markerText
-        ? `<span style="font-size:11px; margin-left:4px; font-weight:800; letter-spacing:0.2px; color:${markerColor};">${reliability.markerText}</span>`
+        ? marcadorFiabilidadHtml(reliability.markerText)
         : '';
     return `<span${titleAttr} style="${badgeStyle}">${displayValue}${markerHtml}</span>`;
 }
@@ -7678,7 +7742,7 @@ function appendReliabilityMarker(cellHtml, nValue, reliabilityStats) {
 
     const titleAttr = reliability.title ? ` title="${reliability.title}"` : '';
     const markerHtml = reliability.markerText
-        ? `<span style="font-size:11px; margin-left:4px; font-weight:800; letter-spacing:0.2px; color:currentColor;">${reliability.markerText}</span>`
+        ? marcadorFiabilidadHtml(reliability.markerText)
         : '';
     const wrapperStyle = `display:inline-flex; align-items:center;${reliability.style ? ` ${reliability.style}` : ''}`;
     return `<span${titleAttr} style="${wrapperStyle}">${cellHtml}${markerHtml}</span>`;
@@ -7691,7 +7755,7 @@ function appendReliabilityMarkerInsideBadge(badgeHtml, nValue, reliabilityStats)
     }
 
     const markerHtml = reliability.markerText
-        ? `<span style="font-size:11px; margin-left:4px; font-weight:800; letter-spacing:0.2px; color:currentColor;">${reliability.markerText}</span>`
+        ? marcadorFiabilidadHtml(reliability.markerText)
         : '';
 
     let updated = badgeHtml;
@@ -7717,7 +7781,7 @@ function renderBreakevenReliabilityBadge(labelHtml, baseStyle, nValue, reliabili
     const reliability = getReliabilityMeta(nValue, reliabilityStats, RELIABILITY_DEFAULT_CONFIG);
     const titleAttr = reliability.title ? ` title="${reliability.title}"` : '';
     const markerHtml = reliability.markerText
-        ? `<span style="font-size:11px; margin-left:4px; font-weight:800; letter-spacing:0.2px; color:currentColor;">${reliability.markerText}</span>`
+        ? marcadorFiabilidadHtml(reliability.markerText)
         : '';
     const style = `${baseStyle}${reliability.style ? ` ${reliability.style}` : ''}`;
     return `<span${titleAttr} style="${style}">${labelHtml}${markerHtml}</span>`;

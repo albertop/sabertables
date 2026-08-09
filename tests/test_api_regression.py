@@ -1370,7 +1370,7 @@ def test_los_analisis_en_carreras_se_pueden_descargar(tipo):
     # Acotado al mapa de nombres de descarga: buscar en todo el fichero casaba
     # tambien con el filtro de filas, asi que el test pasaba sin que el nombre
     # existiera.
-    mapa = js.split("'ph_pitcher': 'PH_Pitcher',", 1)[1].split("};", 1)[0]
+    mapa = js.split("const reImpactTypeLabels = {", 1)[1].split("};", 1)[0]
 
     assert re.search(rf"'{tipo}'\s*:", mapa), f"{tipo} no tiene nombre de descarga"
 
@@ -1391,7 +1391,7 @@ def test_los_analisis_en_carreras_se_descargan_en_los_dos_formatos(tipo, formato
     from pathlib import Path
 
     js = (Path(__file__).parent.parent / "app" / "static" / "js" / "app.js").read_text(encoding="utf-8")
-    mapa = js.split("'ph_pitcher': 'PH_Pitcher',", 1)[1].split("};", 1)[0]
+    mapa = js.split("const reImpactTypeLabels = {", 1)[1].split("};", 1)[0]
 
     assert re.search(rf"'{tipo}'\s*:", mapa), f"{tipo} no tiene nombre de descarga"
     assert f"format === '{formato}'" in js, f"el formato {formato} ya no se construye"
@@ -1400,3 +1400,110 @@ def test_los_analisis_en_carreras_se_descargan_en_los_dos_formatos(tipo, formato
 @pytest.mark.parametrize("formato", ["csv", "json"])
 def test_el_selector_de_descarga_ofrece_los_dos_formatos(client, formato):
     assert f'<option value="{formato}"' in client.get("/").text
+
+
+# ---------------------------------------------------------------------------
+# Todo analisis de RE Impact tiene que estar cableado DE PUNTA A PUNTA
+#
+# POR QUE EXISTE ESTE BLOQUE. Se anadieron steal_runs, running_runs y
+# tagging_runs al modelo, al filtro de filas, al selector y al mapa de descargas
+# -- y las tres tablas salian EN BLANCO. Faltaba la rama que construye la clave
+# del pivote: sin ella `key` queda undefined, el pivote no agrega nada y no se
+# pinta ninguna fila.
+#
+# Y no fallaba nada: la API devolvia 200, el parquet tenia sus 1.392 filas, los
+# tests pasaban. El unico sitio donde se veia era el navegador.
+#
+# La lista NO se escribe aqui: se lee del selector, que es la fuente de verdad de
+# lo que el usuario puede elegir. Un analisis nuevo queda cubierto sin que nadie
+# tenga que acordarse de anadirlo a este fichero.
+# ---------------------------------------------------------------------------
+
+def _tipos_del_selector() -> list[str]:
+    import re
+
+    html = (Path(__file__).parent.parent / "app" / "templates" / "index.html").read_text(encoding="utf-8")
+    bloque = html.split('id="re_impact_type"', 1)[1].split("</select>", 1)[0]
+    return re.findall(r'value="([a-z_]+)"', bloque)
+
+
+def _js() -> str:
+    return (Path(__file__).parent.parent / "app" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+
+
+def test_el_selector_declara_analisis():
+    """Si esto sale vacio, los tests de abajo pasarian sin comprobar nada."""
+    assert len(_tipos_del_selector()) >= 9
+
+
+@pytest.mark.parametrize("tipo", _tipos_del_selector())
+def test_cada_analisis_tiene_clave_de_pivote(tipo):
+    """
+    ESTE ES EL QUE FALTABA.
+
+    Sin su rama en la cadena que construye `key`, la clave queda undefined, el
+    pivote no agrega y la tabla se pinta VACIA. No hay error, no hay 500, no hay
+    log: la pagina carga y no hay filas.
+    """
+    js = _js()
+    pivote = js.split("// Build key based on analysis type", 1)[1].split("if (!aggregated[key])", 1)[0]
+
+    assert f"'{tipo}'" in pivote, (
+        f"{tipo} no tiene rama en la clave del pivote: su tabla saldra en blanco"
+    )
+
+
+@pytest.mark.parametrize("tipo", _tipos_del_selector())
+def test_cada_analisis_tiene_filtro_de_filas(tipo):
+    """Sin filtro, la tabla mezclaria las filas de todos los analisis."""
+    js = _js()
+    # Hasta el CIERRE de la funcion, no hasta el primer `return true;`: hay uno
+    # temprano y cortar ahi dejaba fuera toda la cadena de tipos.
+    filtro = js.split("const matchesAnalysisType", 1)[1].split(chr(10) + "    };", 1)[0]
+
+    assert f"'{tipo}'" in filtro, f"{tipo} no se filtra: mostraria filas de otros analisis"
+
+
+@pytest.mark.parametrize("tipo", _tipos_del_selector())
+def test_cada_analisis_tiene_nombre_de_descarga(tipo):
+    """Sin entrada en el mapa, el fichero baja con nombre generico."""
+    js = _js()
+    # Desde el INICIO del mapa: anclar en una entrada de en medio dejaba fuera
+    # las cuatro anteriores y el test fallaba por donde no era.
+    mapa = js.split("const reImpactTypeLabels = {", 1)[1].split("};", 1)[0]
+
+    assert f"'{tipo}':" in mapa, f"{tipo} no tiene nombre de descarga"
+
+
+@pytest.mark.parametrize("tipo", _tipos_del_selector())
+def test_cada_analisis_esta_aceptado_por_el_modelo(tipo):
+    """Sin estar en el patron de Pydantic, la peticion muere en un 422."""
+    import re
+
+    fuente = (Path(__file__).parent.parent / "app" / "main.py").read_text(encoding="utf-8")
+    patron = re.search(r'analysis_type[^\n]*pattern="\^\(([^)]+)\)', fuente).group(1)
+
+    assert tipo in patron.split("|"), f"{tipo} no lo acepta el modelo"
+
+
+@pytest.mark.parametrize("tipo", _tipos_del_selector())
+def test_cada_analisis_tiene_titulo_legible(tipo):
+    """
+    El titulo de la tabla sale de un mapa con `|| analysisType` de respaldo, asi
+    que un tipo sin entrada NO falla: pinta el codigo crudo. El usuario ve
+    "steal_runs" donde deberia leer "Stolen Bases".
+
+    Paso exactamente eso. Mismo caso en el pie de la tabla.
+    """
+    js = _js()
+    titulos = js.split("const analysisTypeLabel = {", 1)[1].split("}[analysisType]", 1)[0]
+
+    assert f"'{tipo}':" in titulos, f"{tipo} no tiene titulo: se pintaria el codigo crudo"
+
+
+@pytest.mark.parametrize("tipo", _tipos_del_selector())
+def test_cada_analisis_tiene_texto_de_pie(tipo):
+    js = _js()
+    pies = js.split("const analysisTypeFooterLabel = {", 1)[1].split("}[analysisType]", 1)[0]
+
+    assert f"'{tipo}':" in pies, f"{tipo} no tiene texto de pie"

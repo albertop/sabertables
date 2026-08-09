@@ -8,3 +8,14 @@ httpx
 # Solo para regenerar la imagen de tarjeta social con utils/build_og_image.py.
 # NO entra en la imagen de produccion: lo que se sirve es el PNG ya generado.
 pillow>=12.0.0
+
+# Para los tests que PINTAN la pagina en un navegador real
+# (tests/test_render_navegador.py). Son los unicos que detectan que una tabla
+# salga vacia: la API responde 200, el parquet tiene sus filas y los tests
+# estaticos pasan, pero no se pinta nada.
+#
+# Tras instalarlo hace falta bajar el navegador una vez:
+#     python -m playwright install chromium
+#
+# NO entra en la imagen de produccion.
+playwright>=1.56.0

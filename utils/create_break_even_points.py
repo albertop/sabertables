@@ -843,7 +843,8 @@ LABELS_RUNNING = {
 
 
 def _impacto_desde_cubos(df, cubo_quedarse: str, indice: list,
-                        tipo: str, etiqueta_de, origen: str) -> list:
+                        tipo: str, etiqueta_de, origen: str,
+                        escenario_de=None) -> list:
     """
     Convierte una vista de tres cubos en filas de impacto en CARRERAS.
 
@@ -890,10 +891,15 @@ def _impacto_desde_cubos(df, cubo_quedarse: str, indice: list,
             p_exito=int(row["n_success"]) / intentos,
         )
         etiqueta = etiqueta_de(row)
+        # El escenario alimenta el rombo de bases de la tabla, que espera "100",
+        # "010"... Cuando el analisis tiene estado de bases se pasa; estirar el
+        # batazo no lo tiene --el que corre es el bateador-- y ahi el escenario
+        # es la etiqueta y el rombo no aplica.
+        escenario = escenario_de(row) if escenario_de else etiqueta
         rows.append({
             "season": int(row["season"]),
             "type": tipo,
-            "scenario": etiqueta,
+            "scenario": escenario,
             "label": etiqueta,
             "outs": int(row["outs"]),
             "delta_re": carreras["delta_re"],
@@ -930,7 +936,7 @@ def calculate_tagging_impact(tag_df: pd.DataFrame) -> list:
 
     return _impacto_desde_cubos(
         tag_df, "stay", ["season", "outs", "runners", "direction"], "tagging_runs",
-        etiqueta, "Tag-up",
+        etiqueta, "Tag-up", escenario_de=lambda row: str(row["runners"]),
     )
 
 
@@ -2242,7 +2248,13 @@ def load_steal_impact_rows_from_db(re_lookup: dict, seasons_list: list) -> list:
                 rows.append({
                     "season": season,
                     "type": "steal_runs",
-                    "scenario": label,
+                    # scenario ES EL ESTADO DE BASES, no el texto.
+                    #
+                    # La tabla dibuja un rombo de campo con las bases ocupadas en
+                    # naranja, y esa funcion recibe `scenario` esperando "100",
+                    # "010"... Con el texto descriptivo no reconoce nada y pinta
+                    # el rombo VACIO. Es lo que hace sac_bunt, que si funciona.
+                    "scenario": antes,
                     "label": label,
                     "outs": outs,
                     "delta_re": carreras["delta_re"],
