@@ -1861,3 +1861,89 @@ def test_el_pitagorico_usa_la_conexion_compartida(monkeypatch):
     monkeypatch.setattr(pythag.db, "get_engine", lambda: centinela)
 
     assert pythag.get_connection() is centinela
+
+
+# ---------------------------------------------------------------------------
+# Los break-even expresados en CARRERAS (seccion 10 del TODO)
+# ---------------------------------------------------------------------------
+
+def test_la_ganancia_y_el_coste_salen_de_los_mismos_tres_numeros():
+    """
+    ganancia = RE_exito - RE_quedarse
+    coste    = RE_quedarse - RE_fallo
+
+    Son los mismos con los que ya se calcula el break-even; simplemente no se
+    publicaban. No hay nada nuevo que medir.
+    """
+    fila = be.impacto_en_carreras(quedarse=0.26, exito=0.43, fallo=-0.15, p_exito=None)
+
+    assert fila["gain_runs"] == pytest.approx(0.43 - 0.26)
+    assert fila["cost_runs"] == pytest.approx(0.26 - -0.15)
+
+
+def test_el_break_even_se_reconstruye_desde_las_carreras():
+    """
+    LA IDENTIDAD QUE CUADRA LAS DOS TABLAS:
+
+        BE = coste / (ganancia + coste)
+
+    Si esto deja de cumplirse, las dos vistas del mismo numero han divergido y
+    una de las dos esta mal. Es el invariante mas valioso de esta funcion.
+    """
+    quedarse, exito, fallo = 0.26, 0.43, -0.15
+    fila = be.impacto_en_carreras(quedarse, exito, fallo, p_exito=None)
+
+    reconstruido = fila["cost_runs"] / (fila["gain_runs"] + fila["cost_runs"])
+    esperado = (quedarse - fallo) / (exito - fallo)
+
+    assert reconstruido == pytest.approx(esperado)
+
+
+def test_con_tasa_observada_se_publica_el_neto():
+    """
+    neto = p*ganancia - (1-p)*coste. Es lo comparable con el delta_re del toque
+    de sacrificio: cuantas carreras deja intentarlo, de verdad.
+    """
+    fila = be.impacto_en_carreras(quedarse=0.26, exito=0.43, fallo=-0.15, p_exito=0.78)
+
+    esperado = 0.78 * (0.43 - 0.26) - 0.22 * (0.26 - -0.15)
+    assert fila["delta_re"] == pytest.approx(esperado)
+
+
+def test_sin_tasa_observada_no_se_inventa_un_neto():
+    """
+    El robo no tenia tasa observada hasta la vista nueva. Publicar un neto
+    suponiendo una tasa seria inventarse el dato mas importante de la fila.
+    """
+    fila = be.impacto_en_carreras(quedarse=0.26, exito=0.43, fallo=-0.15, p_exito=None)
+
+    assert fila["delta_re"] is None
+    assert fila["gain_runs"] is not None, "ganancia y coste si se pueden publicar"
+
+
+def test_por_encima_del_break_even_el_neto_es_positivo():
+    """
+    Control de coherencia entre las dos tablas: si la tasa observada supera el
+    umbral, intentarlo tiene que ganar carreras. Si no, una de las dos miente.
+    """
+    quedarse, exito, fallo = 0.26, 0.43, -0.15
+    umbral = (quedarse - fallo) / (exito - fallo)
+
+    encima = be.impacto_en_carreras(quedarse, exito, fallo, p_exito=umbral + 0.10)
+    debajo = be.impacto_en_carreras(quedarse, exito, fallo, p_exito=umbral - 0.10)
+    justo = be.impacto_en_carreras(quedarse, exito, fallo, p_exito=umbral)
+
+    assert encima["delta_re"] > 0
+    assert debajo["delta_re"] < 0
+    assert justo["delta_re"] == pytest.approx(0.0, abs=1e-9), "en el umbral, ni gana ni pierde"
+
+
+def test_el_signo_sigue_la_convencion_de_re_impact():
+    """
+    RE Impact usa negativo = cuesta carreras; el toque de sacrificio sale
+    negativo. Una jugada que no conviene tiene que salir negativa aqui tambien,
+    o las dos familias se leen al reves.
+    """
+    malo = be.impacto_en_carreras(quedarse=0.50, exito=0.55, fallo=-0.40, p_exito=0.40)
+
+    assert malo["delta_re"] < 0

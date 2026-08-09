@@ -627,6 +627,49 @@ def load_re288_matrix(data_dir: Path) -> pd.DataFrame:
     return df
 
 
+def impacto_en_carreras(quedarse, exito, fallo, p_exito=None) -> dict:
+    """
+    Convierte los tres estados de una decision en CARRERAS.
+
+        ganancia = RE_exito     - RE_quedarse
+        coste    = RE_quedarse  - RE_fallo
+        neto     = p*ganancia - (1-p)*coste
+
+    POR QUE HACE FALTA, teniendo ya el break-even. El BE es adimensional: dice
+    que tasa de exito necesitas, pero no cuanto te juegas. Dos celdas con
+    BE = 0.70 pueden estar arriesgando 0.05 carreras o 0.5, y la tabla actual no
+    las distingue. Son los MISMOS tres numeros; lo unico que cambia es que aqui
+    se publican en vez de reducirlos a un cociente.
+
+    LA IDENTIDAD QUE CUADRA LAS DOS TABLAS:
+
+        BE = coste / (ganancia + coste)
+
+    Se comprueba en los tests. Si deja de cumplirse, las dos vistas del mismo
+    numero han divergido.
+
+    SIN p NO HAY NETO. `delta_re` queda a None en vez de suponer una tasa: es el
+    dato mas importante de la fila y inventarlo seria peor que no publicarlo.
+    Sirve para las series historicas donde no hay conteos de intentos.
+
+    ENTRADAS EN DELTAS O EN ABSOLUTO, da igual: las tres se restan entre si, asi
+    que una RE inicial comun se cancela. Las vistas de estirar el batazo y de
+    tag-up dan RUN_VALUE (delta); la matriz RE24 da RE absoluta.
+    """
+    ganancia = exito - quedarse
+    coste = quedarse - fallo
+
+    neto = None
+    if p_exito is not None:
+        neto = p_exito * ganancia - (1.0 - p_exito) * coste
+
+    return {
+        "gain_runs": ganancia,
+        "cost_runs": coste,
+        "delta_re": neto,
+    }
+
+
 def _steal_gain_is_possible(re_before, re_after_steal) -> bool:
     """
     Un robo consumado NUNCA puede bajar la esperanza de carreras.
