@@ -1280,3 +1280,50 @@ def test_el_nombre_accesible_apunta_a_un_elemento_que_existe(client):
     for destino in referidos:
         for parte in destino.split():
             assert parte in ids, f"aria-labelledby apunta a un id que no existe: {parte}"
+
+
+# ---------------------------------------------------------------------------
+# Los tres analisis nuevos de RE Impact, en carreras (seccion 10 del TODO)
+# ---------------------------------------------------------------------------
+
+TIPOS_EN_CARRERAS = ("steal_runs", "running_runs", "tagging_runs")
+
+
+@pytest.mark.parametrize("tipo", TIPOS_EN_CARRERAS)
+def test_el_modelo_acepta_los_analisis_en_carreras(client, tipo):
+    """
+    Si el patron de Pydantic no los enumera, la peticion muere en un 422 antes
+    de llegar al generador y la tabla no existe para el usuario.
+    """
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE_IMPACT", "from_season": 2025, "to_season": 2025,
+        "analysis_type": tipo,
+    })
+
+    assert r.status_code != 422, f"{tipo} no esta en el patron: {r.text[:200]}"
+
+
+def test_un_analisis_inventado_se_sigue_rechazando(client):
+    """Ampliar el patron no puede convertirlo en un campo libre."""
+    r = client.post("/api/generate-table", json={
+        "matrix_type": "RE_IMPACT", "from_season": 2025, "to_season": 2025,
+        "analysis_type": "no_existe",
+    })
+
+    assert r.status_code == 422
+
+
+def test_los_tipos_en_carreras_estan_en_una_sola_lista():
+    """
+    El patron de Pydantic y lo que conozca el generador tienen que salir del
+    mismo sitio. Dos listas iguales se separan tarde o temprano, y ya paso: la
+    regla de RE288 vivia duplicada y RE288_FREQ se saltaba el suelo de temporada.
+    """
+    import re
+    from pathlib import Path
+
+    fuente = (Path(__file__).parent.parent / "app" / "main.py").read_text(encoding="utf-8")
+    patron = re.search(r'analysis_type[^\n]*pattern="\^\(([^)]+)\)', fuente).group(1)
+    declarados = set(patron.split("|"))
+
+    assert set(TIPOS_EN_CARRERAS) <= declarados, f"faltan en el patron: {set(TIPOS_EN_CARRERAS) - declarados}"

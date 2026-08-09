@@ -1032,7 +1032,7 @@ class TableRequest(BaseModel):
         pattern="^(stealing|running|tagging|bunt-for-hit|swing-take|swing-take-zone|sb_by_count)$",
         description="Break-even family for BREAKEVEN_POINTS; sin el se mandan todas",
     )
-    analysis_type: str | None = Field(None, pattern="^(sac_bunt|ibb|ph_position|ph_pitcher|platoon_baseline|tto)$", description="Analysis type for RE_IMPACT (sac_bunt, ibb, ph_position, ph_pitcher, platoon_baseline, tto)")
+    analysis_type: str | None = Field(None, pattern="^(sac_bunt|ibb|ph_position|ph_pitcher|platoon_baseline|tto|steal_runs|running_runs|tagging_runs)$", description="Analysis type for RE_IMPACT. Los tres *_runs expresan en carreras lo que Break-Even Points da como porcentaje (seccion 10 de docs/TODO.md)")
 
 
     # Aqui habia un validador que comprobaba que la temporada cabe en un int32.
