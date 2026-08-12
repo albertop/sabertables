@@ -258,6 +258,7 @@ data_store: dict[str, Any] = {
     "seasons": None,  # Loaded at startup
     "last_updated": None,  # Loaded at startup
     "woba_coeffs": None,  # Loaded on-demand
+    "wrc_league_inputs": None,  # Loaded on-demand
     "fip": None,  # Loaded on-demand
     "ballparks": None,  # Loaded on-demand
     "park_factors": None,  # Loaded on-demand
@@ -482,6 +483,14 @@ def _load_dataset(dataset_name: str) -> None:
             for col in ["League_Avg_OBP", "WOBA_Scale", "wuBB", "wHBP", "w1B", "w2B", "w3B", "wHR"]:
                 df[col] = df[col].astype('float64')
             data_store["woba_coeffs"] = df
+
+        elif dataset_name == "wrc_league_inputs":
+            df = pd.read_parquet(DATA_DIR / "wrc_league_inputs.parquet")
+            validate_dataframe_schema(df, "wRC League Inputs",
+                ["season", "lg_pa", "lg_runs", "lg_r_per_pa", "lg_woba_den_sin_p",
+                 "lg_r_per_pa_sin_p", "lg_share_pa_pitchers"])
+            data_store["wrc_league_inputs"] = df
+            logger.info(f"Loaded wRC League Inputs: {len(df):,} rows")
 
         elif dataset_name == "fip":
             df = pd.read_parquet(DATA_DIR / "fip.parquet")
@@ -1013,7 +1022,7 @@ from pydantic import BaseModel, Field
 class TableRequest(BaseModel):
     from_season: int | None = Field(None, ge=1800, le=2100, description="Starting season")
     to_season: int | None = Field(None, ge=1800, le=2100, description="Ending season")
-    matrix_type: str = Field(..., pattern="^(RE24|RE24_PCT|RE288|RE288_FREQ|RE288_TRANS|LINEAR_WEIGHTS|R24_FREQUENCIES|WIN_EXPECTANCY|WIN_PROBABILITY_ADDED|LEVERAGE_INDEX|WOBA_COEFFS|FIP_CONST|PARK_FACTORS|RE24_TRANSITIONS|PYTHAG_EXPONENTS|RUNS_PER_WIN|BREAKEVEN_POINTS|RE_IMPACT)$", description="Matrix type")
+    matrix_type: str = Field(..., pattern="^(RE24|RE24_PCT|RE288|RE288_FREQ|RE288_TRANS|LINEAR_WEIGHTS|R24_FREQUENCIES|WIN_EXPECTANCY|WIN_PROBABILITY_ADDED|LEVERAGE_INDEX|WOBA_COEFFS|FIP_CONST|PARK_FACTORS|RE24_TRANSITIONS|PYTHAG_EXPONENTS|RUNS_PER_WIN|BREAKEVEN_POINTS|RE_IMPACT|WRC_COMPONENTS)$", description="Matrix type")
     event_cd: int | None = Field(None, description="Event code for RE24 filtering")
     inning: int | None = Field(None, description="Inning for RE24_PCT filtering")
     transition_type: str | None = Field(None, pattern="^(B|S|F|X|H)$", description="Transition type for RE288_TRANS filtering (B=ball, S=strike, F=foul, X=ball in play, H=hit by pitch)")
@@ -1336,6 +1345,34 @@ async def generate_table(request: Request, table_request: TableRequest):
         # cualquier valor invalido se rechaza con 422 antes de entrar aqui.
         # Peor aun, eran dos listas que podian separarse sin que nadie lo notara.
         # El contrato vive en el modelo.
+
+        # Como WOBA_COEFFS: una fila por temporada, sin rango. Combina los insumos
+        # de liga con los coeficientes, porque el investigador necesita las cuatro
+        # constantes juntas y la escala vive en el otro parquet.
+        if table_request.matrix_type == "WRC_COMPONENTS":
+            ensure_data_loaded("wrc_league_inputs")
+            ensure_data_loaded("woba_coeffs")
+            lig = data_store["wrc_league_inputs"]
+            co = data_store["woba_coeffs"]
+            df = lig.merge(co[["season", "League_Avg_OBP", "WOBA_Scale", "wuBB",
+                               "wHBP", "w1B", "w2B", "w3B", "wHR"]], on="season")
+            # lgwOBA sin lanzadores: no hay otra fuente. Fija el 100 del wRC+.
+            num = (df.lg_ubb_sin_p * df.wuBB + df.lg_hbp_sin_p * df.wHBP
+                   + df.lg_1b_sin_p * df.w1B + df.lg_2b_sin_p * df.w2B
+                   + df.lg_3b_sin_p * df.w3B + df.lg_hr_sin_p * df.wHR)
+            df["lg_woba_sin_p"] = num / df["lg_woba_den_sin_p"]
+            df["lg_wrc_per_pa_sin_p"] = (
+                (df["lg_woba_sin_p"] - df["League_Avg_OBP"]) / df["WOBA_Scale"]
+                + df["lg_r_per_pa_sin_p"]
+            )
+            cols = ["season", "League_Avg_OBP", "WOBA_Scale", "lg_r_per_pa",
+                    "lg_wrc_per_pa_sin_p", "lg_woba_sin_p", "lg_pa", "lg_runs",
+                    "lg_share_pa_pitchers"]
+            result = {
+                "table_data": df[cols].sort_values("season", ascending=False).to_dict(orient="records"),
+                "matrix_type": "WRC_COMPONENTS",
+            }
+            return ORJSONResponse(content=result)
 
         # WOBA_COEFFS doesn't use season range
         if table_request.matrix_type == "WOBA_COEFFS":

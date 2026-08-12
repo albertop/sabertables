@@ -624,7 +624,7 @@ function toggleSeasonVisibility(matrixType) {
         if (outsContainer) outsContainer.classList.add('d-none');
         if (re24TransitionsOutsContainer) re24TransitionsOutsContainer.classList.add('d-none');
         if (fromSeasonLabel) fromSeasonLabel.textContent = 'Season';
-    } else if (matrixType === 'WOBA_COEFFS' || matrixType === 'FIP_CONST' || matrixType === 'PYTHAG_EXPONENTS' || matrixType === 'RUNS_PER_WIN') {
+    } else if (matrixType === 'WOBA_COEFFS' || matrixType === 'FIP_CONST' || matrixType === 'PYTHAG_EXPONENTS' || matrixType === 'RUNS_PER_WIN' || matrixType === 'WRC_COMPONENTS') {
         // For wOBA, FIP, Pythagorean Exponents, and Runs Per Win: hide both seasons
         fromSeasonContainer.classList.add('d-none');
         toSeasonContainer.classList.add('d-none');
@@ -686,6 +686,8 @@ function updateParametersDescription(matrixType) {
         descriptionElement.textContent = 'Season range, type, and transition type';
     } else if (matrixType === 'LINEAR_WEIGHTS') {
         descriptionElement.textContent = 'Season range';
+    } else if (matrixType === 'WRC_COMPONENTS') {
+        descriptionElement.textContent = '';
     } else if (matrixType === 'WOBA_COEFFS') {
         descriptionElement.textContent = '';
     } else if (matrixType === 'FIP_CONST') {
@@ -1408,7 +1410,7 @@ async function handleGenerateTable() {
     }
     
     // Skip season validation for WOBA_COEFFS, FIP_CONST, and PARK_FACTORS
-    if (matrixType !== 'WOBA_COEFFS' && matrixType !== 'FIP_CONST' && matrixType !== 'PARK_FACTORS') {
+    if (matrixType !== 'WOBA_COEFFS' && matrixType !== 'FIP_CONST' && matrixType !== 'PARK_FACTORS' && matrixType !== 'WRC_COMPONENTS') {
         // Validation: From Season must be <= To Season
         if (fromSeason > toSeason) {
             showError('From Season must be less than or equal to To Season');
@@ -1443,7 +1445,7 @@ async function handleGenerateTable() {
         };
         
         // Only add seasons if not WOBA_COEFFS, FIP_CONST, BREAKEVEN_POINTS, or RE_IMPACT
-        if (matrixType !== 'WOBA_COEFFS' && matrixType !== 'FIP_CONST' && matrixType !== 'BREAKEVEN_POINTS' && matrixType !== 'RE_IMPACT') {
+        if (matrixType !== 'WOBA_COEFFS' && matrixType !== 'FIP_CONST' && matrixType !== 'BREAKEVEN_POINTS' && matrixType !== 'RE_IMPACT' && matrixType !== 'WRC_COMPONENTS') {
             requestBody.from_season = fromSeason;
             // For PARK_FACTORS, only from_season is used (shown as "Season")
             if (matrixType !== 'PARK_FACTORS') {
@@ -1668,6 +1670,8 @@ async function handleGenerateTable() {
         } else if (matrixType === 'RE288_TRANS') {
             renderRE288Table(data);
             enableDownloadButton('re288_trans');
+        } else if (matrixType === 'WRC_COMPONENTS') {
+            renderWRCComponentsTable(data);
         } else if (matrixType === 'WOBA_COEFFS') {
             renderWOBATable(data);
             enableDownloadButton('woba');
@@ -1744,6 +1748,8 @@ async function handleGenerateTable() {
             document.getElementById('win-expectancy-container')?.classList.add('d-none');
             document.getElementById('pythag-exponents-table-container')?.classList.add('d-none');
             document.getElementById('runs-per-win-table-container')?.classList.add('d-none');
+        } else if (matrixType === 'WRC_COMPONENTS') {
+            document.getElementById('wrc-components-table-container').classList.remove('d-none');
         } else if (matrixType === 'WOBA_COEFFS') {
             document.getElementById('woba-table-container').classList.remove('d-none');
             document.getElementById('re24-table-container')?.classList.add('d-none');
@@ -3920,6 +3926,50 @@ let reImpactTtoPagination = {
     rowsPerPage: 8,
     totalRows: 0
 };
+
+// wRC Components: las constantes con las que un investigador calcula wRC, wRC+ y
+// wRAA. Sabertables no publica jugadores; publica con que calcularlos.
+//
+// Autocontenido a proposito, sin clonar renderWOBATable: son 116 filas fijas, una
+// por temporada, y no necesitan paginacion ni ordenacion. Menos codigo compartido
+// es menos sitios donde el proximo tipo se olvide.
+const WRC_COMPONENTS_COLUMNAS = [
+    ['season',              'Season',            0],
+    ['League_Avg_OBP',      'lgwOBA',            5],
+    ['WOBA_Scale',          'wOBA Scale',        5],
+    ['lg_r_per_pa',         'lgR/PA',            5],
+    ['lg_wrc_per_pa_sin_p', 'lgwRC/PA (non-P)',  5],
+    ['lg_woba_sin_p',       'lgwOBA (non-P)',    5],
+    ['lg_pa',               'League PA',         0],
+    ['lg_runs',             'League Runs',       0],
+    ['lg_share_pa_pitchers','Pitcher PA %',      3]
+];
+
+function renderWRCComponentsTable(data) {
+    currentTableData.wrc_components = data;
+    const titulo = document.getElementById('wrc-components-table-title');
+    const sub = document.getElementById('wrc-components-table-subtitle');
+    const head = document.getElementById('wrc-components-table-head');
+    const body = document.getElementById('wrc-components-table-body');
+    if (!head || !body) { console.error('wRC Components table elements not found'); return; }
+
+    if (titulo) titulo.textContent = 'wRC Components by Season';
+    if (sub) sub.textContent = 'Everything needed to compute wRAA, wRC and wRC+ for any batter. '
+        + 'wRAA = ((wOBA − lgwOBA) / wOBA Scale) × PA. '
+        + 'wRC = (((wOBA − lgwOBA) / wOBA Scale) + lgR/PA) × PA. '
+        + 'wRC+ = ((wRAA/PA + lgR/PA) + (lgR/PA − PF × lgR/PA)) / lgwRC/PA (non-P) × 100. '
+        + 'Park factors (PF) are published in the Park Factors table. Regular season only.';
+
+    head.innerHTML = '<tr>' + WRC_COMPONENTS_COLUMNAS
+        .map(([, etiqueta]) => `<th scope="col">${etiqueta}</th>`).join('') + '</tr>';
+
+    body.innerHTML = (data.table_data || []).map(fila => '<tr>' + WRC_COMPONENTS_COLUMNAS
+        .map(([clave, , dec]) => {
+            const v = fila[clave];
+            if (v === null || v === undefined) return '<td>&mdash;</td>';
+            return `<td>${dec ? Number(v).toFixed(dec) : Number(v).toLocaleString()}</td>`;
+        }).join('') + '</tr>').join('');
+}
 
 function renderWOBATable(data) {
     // Store data for download and pagination
