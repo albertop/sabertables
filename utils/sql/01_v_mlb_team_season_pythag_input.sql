@@ -39,7 +39,24 @@ Games AS (
       -- sesgo -0.0029. Es el 3% del error estandar del propio ajuste (0.126), o
       -- sea despreciable. Verificado con control: las 28 temporadas sin empates
       -- dan diferencia exactamente 0.
-      AND statusCode IN ('F', 'FT')
+      -- SE FILTRA POR MARCADOR, NO POR CODIGO DE ESTADO.
+      --
+      -- Antes era statusCode IN ('F','FT'), y dejaba fuera 176 partidos que SI se
+      -- jugaron, repartidos en 42 temporadas y con 1.333 carreras entre todos:
+      -- 'FR' (final por lluvia), 'FO', 'FG' y 'RV'. Son juegos oficiales, con
+      -- ganador y perdedor, que cuentan para la clasificacion. En 2025 son cinco,
+      -- tres de ellos de los White Sox, cuya temporada se calculaba con 159
+      -- juegos en vez de 162.
+      --
+      -- Es el MISMO fallo que ya se corrigio con 'FT' para los empates: se anadio
+      -- ese codigo y no se comprobo si faltaban otros. Filtrar por marcador cierra
+      -- la familia entera y aguanta codigos nuevos.
+      --
+      -- Los cancelados siguen fuera, que es lo correcto: 184 partidos sin
+      -- marcador --'CR', 'CE', 'CI', 'CA'-- incluidos los 120 de 2001 y los 41 de
+      -- 2000, que nunca se disputaron.
+      AND teamAwayScore IS NOT NULL
+      AND teamHomeScore IS NOT NULL
 ),
 TeamSeason AS (
     SELECT

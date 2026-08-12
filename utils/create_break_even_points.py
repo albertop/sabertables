@@ -902,6 +902,15 @@ def _impacto_desde_cubos(df, cubo_quedarse: str, indice: list,
         # batazo no lo tiene --el que corre es el bateador-- y ahi el escenario
         # es la etiqueta y el rombo no aplica.
         escenario = escenario_de(row) if escenario_de else etiqueta
+        # EL BASELINE ES QUEDARSE QUIETO, que es contra lo que se compara el
+        # intento. Sin el, estas tres filas salian sin `delta_re_pct` y el
+        # interruptor de Percentages no tenia nada que ensenar: se pulsaba, la
+        # tabla se repintaba igual, y parecia que el control estaba muerto.
+        #
+        # Es la misma referencia que usan sac_bunt y gidp --la expectativa que ya
+        # tenias-- y se divide entre su VALOR ABSOLUTO, la definicion unica del
+        # sitio.
+        baseline = float(row[f"mean_rv_{cubo_quedarse}"])
         rows.append({
             "season": int(row["season"]),
             "type": tipo,
@@ -909,6 +918,8 @@ def _impacto_desde_cubos(df, cubo_quedarse: str, indice: list,
             "label": etiqueta,
             "outs": int(row["outs"]),
             "delta_re": carreras["delta_re"],
+            "baseline_re": baseline,
+            "delta_re_pct": (carreras["delta_re"] / abs(baseline)) if baseline else None,
             "gain_runs": carreras["gain_runs"],
             "cost_runs": carreras["cost_runs"],
             "n": intentos,
@@ -1261,7 +1272,7 @@ def calculate_gidp_impact(gidp_df: pd.DataFrame, re_lookup: dict) -> list:
             "outs":     int(outs),
             "delta_re": delta_re,
             "baseline_re": re_pre,
-            "delta_re_pct": (delta_re / re_pre) if re_pre else None,
+            "delta_re_pct": (delta_re / abs(re_pre)) if re_pre else None,
             "n":        n_dp,
         })
     return rows
@@ -1730,7 +1741,7 @@ def calculate_sac_bunt_delta_re(re_lookup: dict, n_lookup: dict, seasons: list) 
                     continue
                 delta_re = re_after - re_before
                 # Store percentage as a ratio in [0, 1] scale, not [0, 100].
-                delta_re_pct = (delta_re / re_before) if re_before != 0 else None
+                delta_re_pct = (delta_re / abs(re_before)) if re_before != 0 else None
                 rows.append({
                     "season":   season,
                     "type":     "sac_bunt",
@@ -1786,7 +1797,7 @@ def calculate_ibb_impact(ibb_df: pd.DataFrame, all_seasons: list, re_lookup: dic
                     continue
 
                 delta_re = post_ibb_re - float(baseline_re)
-                delta_re_pct = (delta_re / baseline_re) if baseline_re != 0 else None
+                delta_re_pct = (delta_re / abs(baseline_re)) if baseline_re != 0 else None
                 rows.append({
                     "season":   season,
                     "type":     "ibb",
@@ -2176,8 +2187,17 @@ def _normalize_platoon_impact_view_df(df: pd.DataFrame, re_lookup: dict) -> pd.D
             axis=1,
         )
 
-    if "delta_run_value_scaled" in df.columns:
-        # El porcentaje viene ya calculado del SQL; aqui no se suprime nada.
+    if False:  # El porcentaje de SQL ya no se usa. Ver la nota de abajo.
+        # POR QUE SE DEJO DE USAR delta_run_value_scaled.
+        #
+        # La vista lo divide entre `baseline_abs_run_value`, que NO es el valor
+        # absoluto de `baseline_avg_run_value`: es otra cantidad. Convivian por
+        # tanto dos definiciones de la misma columna, y el interruptor de
+        # Percentages las presentaba como si fueran la misma metrica: un -22% en
+        # sac_bunt significa "pierdes el 22% de tu expectativa" y en platoon
+        # significaba otra cosa que se lee igual.
+        #
+        # Ahora platoon pasa por el mismo camino que el resto: delta / |baseline|.
         out["delta_re_pct"] = df["delta_run_value_scaled"]
         nulls_from_sql = int(out["delta_re_pct"].isna().sum())
         if nulls_from_sql > 0:
@@ -2206,7 +2226,9 @@ def _normalize_platoon_impact_view_df(df: pd.DataFrame, re_lookup: dict) -> pd.D
             if RE_IMPACT_PCT_MIN_BASELINE_ABS > 0 and abs(baseline_f) < RE_IMPACT_PCT_MIN_BASELINE_ABS:
                 suppressed["small"] += 1
                 return pd.NA
-            return float(delta) / baseline_f
+            # SIEMPRE el valor absoluto: con baseline negativo, dividir con
+            # signo invierte la lectura. Ver el test de esta invariante.
+            return float(delta) / abs(baseline_f)
 
         out["delta_re_pct"] = out.apply(_compute_pct_row, axis=1)
 
@@ -2391,6 +2413,10 @@ def load_steal_impact_rows_from_db(re_lookup: dict, seasons_list: list) -> list:
                     "outs": outs,
                     "delta_re": carreras["delta_re"],
                     "baseline_re": re_antes,
+                    # Ya tenia el baseline y le faltaba solo esto, asi que el
+                    # interruptor de Percentages salia vacio en Stolen Bases.
+                    "delta_re_pct": (carreras["delta_re"] / abs(re_antes))
+                                    if (re_antes and carreras["delta_re"] is not None) else None,
                     "gain_runs": carreras["gain_runs"],
                     "cost_runs": carreras["cost_runs"],
                     # Los INTENTOS, no los fallos: el break-even publica n_fail

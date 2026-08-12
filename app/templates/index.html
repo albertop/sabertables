@@ -594,16 +594,51 @@
 
         <!-- wOBA Coefficients Table (without heatmap toggle) -->
         <div class="container-xl px-3 px-md-4 py-3 py-md-5 d-none" id="wrc-components-table-container">
-            <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
-                <span class="material-symbols-outlined text-secondary-custom">table_view</span>
-                <span id="wrc-components-table-title">Matrix Preview</span>
-            </h3>
-            <p id="wrc-components-table-subtitle" class="text-white opacity-80 small mb-3 mb-md-4">&nbsp;</p>
+            <div class="d-flex align-items-center justify-content-between mb-2 gap-3">
+                <h3 class="text-white h5 h4-md fw-bold d-flex align-items-center gap-2 gap-md-3 mb-0">
+                    <span class="material-symbols-outlined text-secondary-custom">table_view</span>
+                    <span id="wrc-components-table-title">Matrix Preview</span>
+                </h3>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-white fw-medium">Heatmap</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="wrc-components-heatmap-toggle" style="cursor: pointer;" checked>
+                    </div>
+                </div>
+            </div>
+            <p id="wrc-components-table-title-subtitle" class="text-white opacity-80 small mb-1">&nbsp;</p>
+            <p id="wrc-components-table-subtitle-2" class="text-white opacity-80 small mb-3 mb-md-4">&nbsp;</p>
             <div class="table-responsive">
-                <table class="table table-dark table-hover align-middle mb-0">
+                <table class="table table-dark table-hover align-middle mb-0" aria-labelledby="wrc-components-table-title">
                     <thead id="wrc-components-table-head"></thead>
                     <tbody id="wrc-components-table-body"></tbody>
                 </table>
+            </div>
+            <div class="p-3 p-md-4 border-top border-dark bg-surface-dark">
+                <div class="row align-items-center g-3">
+                    <div class="col-12 col-md-4">
+                        <div id="wrc-components-season-count" class="text-white small opacity-75"></div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div id="wrc-components-pagination" class="d-flex justify-content-center align-items-center gap-2"></div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="d-flex flex-column flex-sm-row gap-2 gap-md-3 align-items-stretch align-items-sm-center justify-content-md-end">
+                            <label class="text-white small fw-medium d-none d-sm-block whitespace-nowrap" for="wrc-components-format-select">File Format:</label>
+                            <div class="select-wrapper select-wrapper-130">
+                                <select class="form-select form-select-sm form-select-custom btn-height-40" id="wrc-components-format-select" name="format">
+                                    <option value="csv">CSV</option>
+                                    <option value="json">JSON</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon icon-size-20">expand_more</span>
+                            </div>
+                            <button id="download-wrc-components-btn" class="btn btn-primary-custom d-flex align-items-center justify-content-center gap-2 px-4 w-100 w-sm-auto btn-height-40">
+                                <span class="material-symbols-outlined">download</span>
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

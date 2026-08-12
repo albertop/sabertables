@@ -41,11 +41,20 @@ AS
 -- asi que cuenta como no-lanzador. Es una decision, no un descuido; FanGraphs y
 -- Baseball-Reference no la tratan igual.
 --
--- LAS CARRERAS SALEN DE LOS EVENTOS, no de v_mlb_team_season_pythag_input. Esa
--- vista trae carreras de temporada regular por equipo y serviria, pero contar
--- aqui mantiene numerador y denominador sobre exactamente la misma poblacion de
--- eventos. Si se cruzaran dos fuentes, un desajuste de cobertura pasaria
--- inadvertido.
+-- LAS CARRERAS SE CUENTAN EN TODOS LOS EVENTOS, NO SOLO EN LOS DE BATEO.
+--
+-- BAT_EVENT_FL = 'T' estaba en el WHERE y filtraba las dos cosas a la vez. Las
+-- apariciones al plato SI son eventos de bateo, pero las carreras no: se anota
+-- tambien en un robo de home, un wild pitch, un passed ball o un balk, y esos no
+-- lo son.
+--
+-- Medido en 2025: con el filtro salian 21.276 carreras; sin el, 21.613. Faltaban
+-- 337, un 1,6% del total, y todo el lgR/PA salia bajo. Ese numero entra directo
+-- en wRC y en wRC+ de cualquier bateador.
+--
+-- Se cuenta aqui y no en v_mlb_team_season_pythag_input --que da 21.579 para
+-- 2025, 34 menos-- para que numerador y denominador salgan de la misma poblacion
+-- de eventos. Esa diferencia de 34 esta sin explicar y merece mirarse aparte.
 --
 -- EL FACTOR DE PARQUE NO ESTA AQUI. Es por parque y temporada, no por liga; vive
 -- en parkFactors.parquet (PF_R) y se cruza aguas abajo.
@@ -54,8 +63,11 @@ WITH eventos AS (
         SEASON,
         CASE WHEN BAT_FLD_CD = 1 THEN 1 ELSE 0 END AS lanzador_bateando,
         -- Denominador wOBA: PA - IBB - SH - interferencia.
-        CASE WHEN EVENT_CD NOT IN (15, 17) AND SH_FL <> 'T' THEN 1 ELSE 0 END AS den_woba,
-        CASE WHEN EVENT_CD <> 17 THEN 1 ELSE 0 END AS pa,
+        -- LAS APARICIONES AL PLATO SI SE FILTRAN POR BAT_EVENT_FL; LAS CARRERAS NO.
+        -- Ver la nota de abajo.
+        CASE WHEN BAT_EVENT_FL = 'T' AND EVENT_CD NOT IN (15, 17)
+                  AND SH_FL <> 'T' THEN 1 ELSE 0 END AS den_woba,
+        CASE WHEN BAT_EVENT_FL = 'T' AND EVENT_CD <> 17 THEN 1 ELSE 0 END AS pa,
         CASE WHEN EVENT_CD = 14 THEN 1 ELSE 0 END AS uBB,
         CASE WHEN EVENT_CD = 15 THEN 1 ELSE 0 END AS iBB,
         CASE WHEN EVENT_CD = 16 THEN 1 ELSE 0 END AS HBP,
@@ -72,7 +84,6 @@ WITH eventos AS (
         CASE WHEN RUN3_DEST_ID >= 4 THEN 1 ELSE 0 END AS carreras
     FROM dbo.v_retroAllEventsRegAndPost
     WHERE GAME_TYPE = 'R'
-      AND BAT_EVENT_FL = 'T'
 )
 SELECT
     SEASON AS season,

@@ -1221,3 +1221,188 @@ def test_el_signo_del_neto_coincide_con_superar_el_umbral(tipo):
     positivos = df["delta_re"] > 0
     assert (p[positivos] > umbral_implicito[positivos]).all()
     assert (p[~positivos] <= umbral_implicito[~positivos] + 1e-9).all()
+
+
+# ---------------------------------------------------------------------------
+# El porcentaje del toggle de RE Impact
+# ---------------------------------------------------------------------------
+
+def test_todos_los_analisis_de_re_impact_traen_delta_re_pct():
+    """
+    El interruptor de Percentages de RE Impact cambia el campo que se agrega:
+    `delta_re_pct` en vez de `delta_re`. Si un tipo sale del pipeline sin ese
+    campo, el interruptor NO FALLA: se pulsa, la tabla se repinta y se queda
+    igual, o con huecos. Parece que el control esta muerto.
+
+    Paso con steal_runs, running_runs y tagging_runs: los construi sin rellenar el
+    porcentaje. sac_bunt, gidp e ibb si lo traian, y por eso ahi funcionaba.
+
+    El porcentaje es `delta_re / baseline_re`: la parte de la expectativa de
+    carreras que tenias y que la jugada te quita o te suma.
+    """
+    import pandas as pd
+
+    df = pd.read_parquet(DATA_DIR / "re_impact.parquet")
+
+    sin_pct = {}
+    for tipo, g in df.groupby("type"):
+        # Solo cuenta donde el porcentaje es calculable: con baseline cero no lo es.
+        # Dos supresiones son DELIBERADAS y no cuentan como falta:
+        #   - sin delta_re no hay nada que dividir (el robo donde no cabe ganancia);
+        #   - baseline por debajo del umbral, que dispararia el cociente.
+        calculables = g[g["baseline_re"].notna() & (g["baseline_re"] != 0)
+                        & g["delta_re"].notna()
+                        & (g["baseline_re"].abs() >= 0.01)]
+        if not len(calculables):
+            continue
+        faltan = int(calculables["delta_re_pct"].isna().sum())
+        if faltan:
+            sin_pct[tipo] = f"{faltan} de {len(calculables)}"
+
+    assert not sin_pct, (
+        f"analisis sin delta_re_pct: {sin_pct}. "
+        f"El interruptor de Percentages no ensenara nada para esos tipos."
+    )
+
+
+def test_delta_re_pct_es_delta_re_entre_el_VALOR_ABSOLUTO_del_baseline():
+    """
+    UNA SOLA DEFINICION: delta_re / |baseline_re|.
+
+    Convivian dos. Casi todos los tipos dividian entre el baseline CON SIGNO,
+    mientras platoon_baseline y tto usaban el valor absoluto
+    (v_re_analysis_platoon_impact_final: dividido por baseline_abs_run_value).
+    El mismo interruptor de Percentages presentaba las dos como si fueran la misma
+    metrica.
+
+    Gana el valor absoluto, y no por gusto: con un baseline NEGATIVO, dividir con
+    signo invierte la lectura --una mejora sale como porcentaje negativo-- y por
+    eso platoon lo evitaba. Donde el baseline es positivo, que es casi siempre, el
+    numero no cambia.
+    """
+    import numpy as np
+    import pandas as pd
+
+    df = pd.read_parquet(DATA_DIR / "re_impact.parquet")
+    x = df[df["delta_re_pct"].notna() & df["baseline_re"].notna()
+           & (df["baseline_re"].abs() >= 0.01) & df["delta_re"].notna()]
+    assert len(x) > 100, f"muy pocas filas para comprobar: {len(x)}"
+
+    esperado = x["delta_re"].astype(float) / x["baseline_re"].astype(float).abs()
+    dif = np.abs(esperado - x["delta_re_pct"].astype(float))
+
+    malas = x[dif > 1e-4]
+    assert malas.empty, (
+        f"{len(malas)} filas donde delta_re_pct no es delta_re/|baseline_re|. "
+        f"Tipos: {sorted(malas['type'].unique())}"
+    )
+
+
+def test_las_carreras_de_liga_no_se_filtran_por_evento_de_bateo():
+    """
+    LAS CARRERAS NO SON UN EVENTO DE BATEO.
+
+    `BAT_EVENT_FL = 'T'` estaba en el WHERE de v_wrc_league_inputs, asi que
+    filtraba la consulta ENTERA. Las apariciones al plato si son eventos de bateo,
+    pero las carreras no: se anota tambien en un robo de home, un wild pitch, un
+    passed ball o un balk.
+
+    Medido en 2025: 21.276 con el filtro contra 21.613 sin el. Faltaban 337, un
+    1,6%, y todo el lgR/PA salia bajo. En wRC+ casi se cancela --el error esta
+    arriba y abajo de la fraccion-- pero el wRC y el wRAA se lo comen entero: una
+    carrera de menos por bateador y temporada, sin forma de detectarlo.
+
+    El filtro tiene que estar EN LA COLUMNA de PA, no en el WHERE.
+    """
+    import re
+
+    sql = (Path(__file__).resolve().parent.parent / 'utils' / 'sql'
+           / '23_v_wrc_league_inputs.sql').read_text(encoding='utf-8')
+
+    # Fuera comentarios: la explicacion del fallo menciona BAT_EVENT_FL a proposito.
+    codigo = '\n'.join(l for l in sql.splitlines() if not l.strip().startswith('--'))
+
+    where = codigo.split('FROM dbo.v_retroAllEventsRegAndPost', 1)[1].split(')', 1)[0]
+    assert 'BAT_EVENT_FL' not in where.upper(), (
+        'BAT_EVENT_FL vuelve a estar en el WHERE: las carreras de robos, wild '
+        'pitches, passed balls y balks se pierden y el lgR/PA sale bajo.'
+    )
+
+    # Y donde SI tiene que estar: en las columnas de apariciones al plato.
+    for col in ('AS den_woba', 'AS pa'):
+        tramo = codigo.split(col, 1)[0].rsplit('CASE', 1)[-1]
+        assert 'BAT_EVENT_FL' in tramo.upper(), (
+            f'la columna {col.strip()} ya no filtra por BAT_EVENT_FL: contaria '
+            f'como aparicion al plato cosas que no lo son.'
+        )
+
+
+def test_lgR_por_PA_esta_en_un_rango_creible():
+    """
+    Una red mas basta que la anterior, pero que no depende de leer SQL: si el
+    lgR/PA se sale de la banda historica, algo cambio en la poblacion contada.
+    Con el filtro puesto, 2025 daba 0,116 en vez de 0,118 -- dentro de banda, asi
+    que ESTE test solo no lo habria cazado. Se deja por lo que si coge: cambios
+    gruesos de cobertura.
+    """
+    import pandas as pd
+
+    df = pd.read_parquet(DATA_DIR / "wrc_league_inputs.parquet")
+    fuera = df[(df["lg_r_per_pa"] < 0.08) | (df["lg_r_per_pa"] > 0.16)]
+
+    assert fuera.empty, (
+        f"{len(fuera)} temporadas con lgR/PA fuera de 0,08-0,16: "
+        f"{fuera[['season', 'lg_r_per_pa']].head(5).to_dict('records')}"
+    )
+
+
+def test_el_pitagorico_filtra_por_marcador_y_no_por_codigo_de_estado():
+    """
+    UN PARTIDO CUENTA SI SE JUGO, NO SI TIENE EL CODIGO QUE ALGUIEN LISTO.
+
+    v_mlb_team_season_pythag_input filtraba `statusCode IN ('F','FT')` y dejaba
+    fuera 176 juegos que SI se disputaron, en 42 temporadas y con 1.333 carreras:
+    'FR' (final por lluvia), 'FO', 'FG' y 'RV'. En 2025 eran cinco, tres de ellos
+    de los White Sox, cuya temporada salia con 159 juegos en vez de 162.
+
+    Y ya habia pasado antes: se anadio 'FT' para rescatar los empates y nadie
+    comprobo si faltaban mas codigos. Faltaban cuatro familias.
+
+    Filtrar por marcador cierra el problema entero y aguanta codigos nuevos. Los
+    cancelados siguen fuera --184 partidos sin marcador, incluidos los 120 de 2001
+    y los 41 de 2000-- que es lo correcto: nunca se jugaron.
+    """
+    sql = (Path(__file__).resolve().parent.parent / 'utils' / 'sql'
+           / '01_v_mlb_team_season_pythag_input.sql').read_text(encoding='utf-8')
+    codigo = '\n'.join(l for l in sql.splitlines() if not l.strip().startswith('--'))
+
+    assert 'statusCode' not in codigo, (
+        "el pitagorico vuelve a filtrar por statusCode. Cada codigo nuevo que "
+        "aparezca --o que no se recuerde-- se llevara juegos jugados por delante."
+    )
+    for col in ('teamAwayScore IS NOT NULL', 'teamHomeScore IS NOT NULL'):
+        assert col in codigo, f"falta el filtro por marcador: {col}"
+
+
+def test_el_pitagorico_cuenta_las_temporadas_completas():
+    """
+    La consecuencia visible: con el filtro viejo, 2025 salia con 2.425 juegos en
+    vez de 2.430. Una temporada moderna son 30 equipos x 162 / 2.
+
+    Se comprueba sobre el parquet, que es lo que llega a la aplicacion.
+    """
+    import pandas as pd
+
+    df = pd.read_parquet(DATA_DIR / "pythag_exponents.parquet")
+    assert len(df) > 100, f"pocas temporadas: {len(df)}"
+
+    col_g = next((c for c in df.columns if 'game' in c.lower() or 'juego' in c.lower()), None)
+    if col_g is None:
+        pytest.skip("el parquet de exponentes no publica el conteo de juegos")
+
+    modernas = df[df["season"].between(2013, 2019)]  # sin pandemia ni acortadas
+    flojas = modernas[modernas[col_g] < 2400]
+    assert flojas.empty, (
+        f"temporadas modernas con menos de 2.400 juegos: "
+        f"{flojas[['season', col_g]].to_dict('records')}"
+    )

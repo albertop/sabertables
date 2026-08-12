@@ -1196,18 +1196,27 @@ _PLATOON_BASE = {"season": 2024, "outs": 0, "handedness_split": " RHP vs LHB ",
                  "n": 500, "delta_run_value": 0.021}
 
 
-def test_el_porcentaje_de_platoon_se_toma_del_sql_si_viene():
+def test_el_porcentaje_de_platoon_YA_NO_se_toma_del_sql():
     """
-    Cuando la vista ya trae delta_run_value_scaled se usa tal cual. Recalcularlo
-    aqui daria dos numeros distintos para la misma celda segun la rama.
+    LA REGLA CAMBIO, Y ESTE TEST DICE LA NUEVA.
+
+    Antes se usaba `delta_run_value_scaled` tal cual, para no tener dos numeros
+    distintos segun la rama. El problema es que la vista lo divide entre
+    `baseline_abs_run_value`, que NO es el valor absoluto de
+    `baseline_avg_run_value`: es otra cantidad. Asi que habia dos DEFINICIONES de
+    la misma columna, y el interruptor de Percentages las presentaba como si
+    fueran la misma metrica.
+
+    Ahora platoon pasa por el mismo camino que el resto: delta / |baseline|. La
+    columna del SQL se ignora aunque venga.
     """
     df = _platoon([{**_PLATOON_BASE, "baseline_avg_run_value": 0.7,
                     "delta_run_value_scaled": 0.123}])
 
     out = be._normalize_platoon_impact_view_df(df, {})
 
-    assert out["delta_re_pct"].iloc[0] == pytest.approx(0.123)
-    assert out["delta_re_pct"].iloc[0] != pytest.approx(0.021 / 0.7), 'no lo recalcula'
+    assert out["delta_re_pct"].iloc[0] == pytest.approx(0.021 / 0.7)
+    assert out["delta_re_pct"].iloc[0] != pytest.approx(0.123), "sigue usando el de SQL"
 
 
 def test_sin_columna_del_sql_el_porcentaje_se_calcula_sobre_el_baseline():

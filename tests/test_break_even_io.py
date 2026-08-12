@@ -1041,22 +1041,29 @@ def test_avanzar_una_base_tambien_descarta_las_celdas_incompletas():
     assert be.calculate_advance_breakeven(solo_dos) == []
 
 
-def test_el_platoon_avisa_si_el_porcentaje_llega_nulo_desde_sql(caplog):
+def test_el_platoon_no_depende_ya_de_la_columna_de_porcentaje_del_sql(caplog):
     """
-    delta_run_value_scaled lo calcula la vista. Si llega nulo, la columna de
-    porcentaje sale vacia en la tabla; conviene que el log lo diga en vez de
-    dejarlo pasar.
+    Antes, si `delta_run_value_scaled` llegaba nulo, la columna de porcentaje
+    salia vacia y el log lo avisaba. Esa dependencia desaparecio: platoon calcula
+    el porcentaje como todos, delta / |baseline|.
+
+    Aqui NO hay baseline --ni columna ni re_lookup-- asi que el porcentaje sigue
+    saliendo nulo, pero por el motivo correcto: no hay entre que dividir. Lo que
+    ya no puede pasar es que dependa de una columna del SQL.
     """
     df = pd.DataFrame({
         "season": [2024], "outs": [1], "runners": ["000"],
         "handedness_split": ["RHP vs RHB"], "delta_run_value": [0.02],
-        "delta_run_value_scaled": [None], "n": [5000],
+        "delta_run_value_scaled": [0.999], "n": [5000],
     })
 
     with caplog.at_level("INFO"):
-        be._normalize_platoon_impact_view_df(df, re_lookup={})
+        out = be._normalize_platoon_impact_view_df(df, re_lookup={})
 
-    assert "delta_run_value_scaled" in caplog.text
+    assert pd.isna(out["delta_re_pct"].iloc[0]), (
+        f"sin baseline el porcentaje tiene que salir nulo, y salio "
+        f"{out['delta_re_pct'].iloc[0]!r}: sigue viniendo de delta_run_value_scaled"
+    )
 
 
 def test_el_impacto_sin_ninguna_columna_opcional_se_escribe_igual(tmp_path):

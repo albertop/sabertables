@@ -492,3 +492,428 @@ def test_wrc_components_no_ensena_el_codigo_interno(pagina):
     assert "WRC_COMPONENTS" not in r["cabeceras"], (
         f"la cabecera enseña el codigo crudo: {r['cabeceras']!r}"
     )
+
+
+@pytest.mark.parametrize("formato", ["csv", "json"])
+def test_wrc_components_baja_un_fichero(pagina, formato):
+    """
+    SE PULSA EL BOTON. Comprobar que el tipo existe en los mapas no prueba que
+    baje nada: el generador de CSV y el de JSON son OTRA cadena, y si no tiene su
+    rama el fichero sale vacio y el navegador ni dispara la descarga -- sin error
+    en consola y sin excepcion. Ya paso con los tres analisis en carreras.
+    """
+    import json as _json
+
+    r = _generar_matriz(pagina, "WRC_COMPONENTS")
+    assert "error" not in r, f"no se pinto: {r}"
+
+    pagina.select_option("#wrc-components-format-select", formato)
+    boton = pagina.locator("#download-wrc-components-btn")
+    assert boton.count() == 1, "no existe #download-wrc-components-btn"
+
+    try:
+        with pagina.expect_download(timeout=15000) as info:
+            boton.click()
+    except PlaywrightTimeout:
+        banner = pagina.evaluate(
+            "() => Array.from(document.querySelectorAll('.error-message, #error-message, [class*=error]'))"
+            ".map(e => e.textContent.trim()).filter(Boolean).join(' | ')"
+        )
+        raise AssertionError(
+            f"{formato}: se pulso el boton y NO bajo nada. Banner: {banner or '(ninguno)'}"
+        ) from None
+
+    ruta = info.value.path()
+    contenido = pathlib.Path(ruta).read_text(encoding="utf-8", errors="replace")
+    assert contenido.strip(), f"{formato}: el fichero vino VACIO"
+    assert info.value.suggested_filename.endswith(f".{formato}")
+
+    if formato == "json":
+        _json.loads(contenido)
+    else:
+        assert contenido.count("\n") >= 100, "un CSV sin las 116 temporadas"
+
+
+# ---------------------------------------------------------------------------
+# wRC Components: que se PAREZCA a las demas tablas (PLAN_WRC_COMPONENTS_UI.md)
+#
+# Tres de estos comprueban el EFECTO, no que el control exista. Es la leccion del
+# boton de descarga: estaba puesto y no bajaba nada.
+# ---------------------------------------------------------------------------
+
+def _pintar_wrc(pagina):
+    """Deja wRC Components en pantalla. Devuelve el numero de filas visibles."""
+    r = _generar_matriz(pagina, "WRC_COMPONENTS")
+    assert "error" not in r, f"wRC Components no se pinto: {r}"
+    return r
+
+
+def test_wrc_las_cabeceras_llevan_el_fondo_del_sitio(pagina):
+    """
+    Sin `bg-primary` la cabecera se lee como una fila mas. Todas las demas tablas
+    lo llevan; esta se quedo sin el porque me invente la presentacion.
+    """
+    _pintar_wrc(pagina)
+    sin_fondo = pagina.evaluate(
+        """() => Array.from(document.querySelectorAll('#wrc-components-table-head th'))
+                .filter(th => !th.className.includes('bg-primary'))
+                .map(th => th.textContent.trim())"""
+    )
+
+    assert not sin_fondo, f"cabeceras sin bg-primary: {sin_fondo}"
+
+
+def test_wrc_se_puede_ordenar_y_las_filas_CAMBIAN(pagina):
+    """
+    No basta con que aparezca el icono de ordenar. Se pulsa una cabecera y la
+    primera fila tiene que ser OTRA.
+    """
+    _pintar_wrc(pagina)
+    r = pagina.evaluate(
+        """async () => {
+            const th = document.querySelectorAll('#wrc-components-table-head th');
+            if (!th.length) return {error: 'sin cabeceras'};
+            const conAccion = Array.from(th).filter(x => x.dataset.accion && x.dataset.clave);
+            if (!conAccion.length) return {error: 'ninguna cabecera es ordenable'};
+            const primera = () => document.querySelector('#wrc-components-table-body tr')
+                                          ?.textContent.replace(/\s+/g, ' ').trim();
+            const antes = primera();
+            conAccion[0].click();
+            await new Promise(r => setTimeout(r, 600));
+            return {antes, despues: primera(), ordenables: conAccion.length};
+        }"""
+    )
+
+    assert "error" not in r, r["error"]
+    assert r["antes"] != r["despues"], (
+        f"se pulso la cabecera y la tabla no se reordeno: {r['antes']!r}"
+    )
+
+
+def test_wrc_tiene_heatmap_y_arranca_encendido(pagina):
+    _pintar_wrc(pagina)
+    r = pagina.evaluate(
+        """() => {
+            const t = document.querySelector('#wrc-components-table-container [id*="heatmap"]');
+            return t ? {existe: true, encendido: t.checked} : {existe: false};
+        }"""
+    )
+
+    assert r["existe"], "no hay interruptor de heatmap"
+    assert r["encendido"], "el heatmap existe pero arranca APAGADO"
+
+
+def test_wrc_el_heatmap_PINTA_y_al_apagarlo_desaparece(pagina):
+    """
+    Que el interruptor exista no prueba que haga nada. Con el encendido tiene que
+    haber celdas con color; al apagarlo, ninguna.
+    """
+    _pintar_wrc(pagina)
+    r = pagina.evaluate(
+        """async () => {
+            const t = document.querySelector('#wrc-components-table-container [id*="heatmap"]');
+            if (!t) return {error: 'no hay interruptor'};
+            // La pildora, no el <td>: es el idioma del sitio. Contar fondos de
+            // celda daria verde con una presentacion que no se parece a ninguna
+            // otra tabla.
+            const conColor = () => Array.from(
+                document.querySelectorAll('#wrc-components-table-body td span'))
+                .filter(sp => sp.style.backgroundColor && sp.style.backgroundColor !== 'transparent').length;
+            if (!t.checked) { t.click(); await new Promise(r => setTimeout(r, 500)); }
+            const encendido = conColor();
+            t.click(); await new Promise(r => setTimeout(r, 500));
+            const apagado = conColor();
+            t.click(); await new Promise(r => setTimeout(r, 300));
+            return {encendido, apagado};
+        }"""
+    )
+
+    assert "error" not in r, r["error"]
+    assert r["encendido"] > 0, "el heatmap esta encendido y no pinta una sola celda"
+    assert r["apagado"] == 0, f"se apago el heatmap y quedan {r['apagado']} celdas con color"
+
+
+def test_wrc_pagina_y_no_vuelca_las_116_temporadas(pagina):
+    """
+    116 filas de golpe son 5.060 px de alto. Las demas tablas pintan 12 y paginan.
+    Y pasar de pagina tiene que cambiar la primera fila, no solo el numerito.
+    """
+    filas = _pintar_wrc(pagina)["filas"]
+    assert filas <= 20, f"se pintaron {filas} filas de golpe; las demas paginan a 12"
+
+    r = pagina.evaluate(
+        """async () => {
+            const cont = document.getElementById('wrc-components-table-container');
+            // Por data-accion, no por texto: el sitio usa flechas (▶, ⏭),
+            // asi que buscar "next" no encuentra nada aunque la paginacion exista.
+            const botones = Array.from(cont.querySelectorAll('[data-accion*="Page"]'));
+            if (!botones.length) return {error: 'no hay control de paginacion'};
+            const siguiente = botones.find(b => Number(b.dataset.pagina) === 2 && !b.disabled);
+            if (!siguiente) return {error: 'no hay boton para la pagina 2'};
+            const primera = () => document.querySelector('#wrc-components-table-body tr')
+                                          ?.textContent.replace(/\s+/g, ' ').trim();
+            const antes = primera();
+            siguiente.click();
+            await new Promise(r => setTimeout(r, 600));
+            return {antes, despues: primera()};
+        }"""
+    )
+
+    assert "error" not in r, r["error"]
+    assert r["antes"] != r["despues"], "se paso de pagina y siguen las mismas filas"
+
+
+# ---------------------------------------------------------------------------
+# EL TEST QUE FALTABA EN TODO EL SITIO
+#
+# Todos los demas generan UNA tabla y comprueban ESA. Ninguno cambia de tipo. Por
+# eso nadie vio que al anadir wRC Components su contenedor se quedara visible
+# encima de las otras: cada tabla se pintaba bien, no habia ni un error de
+# JavaScript, y desde fuera parecia que el boton Generate habia dejado de
+# funcionar en el sitio entero.
+#
+# Un contenedor que no se esconde no rompe nada por dentro. Solo tapa.
+# ---------------------------------------------------------------------------
+
+TIPOS_DE_MATRIZ = ["RE24", "RE288", "LINEAR_WEIGHTS", "WOBA_COEFFS", "FIP_CONST",
+                   "PYTHAG_EXPONENTS", "RUNS_PER_WIN", "WRC_COMPONENTS",
+                   "WIN_EXPECTANCY", "LEVERAGE_INDEX"]
+
+
+@pytest.mark.parametrize("tipo", TIPOS_DE_MATRIZ)
+def test_solo_UNA_tabla_queda_visible_al_cambiar_de_tipo(pagina, tipo):
+    """
+    Se pasa por wRC Components y luego se elige otro tipo, que es el orden en el
+    que aparecio el fallo. Al terminar tiene que quedar UN solo contenedor
+    visible: el que se pidio.
+    """
+    _generar_matriz(pagina, "WRC_COMPONENTS")
+    r = _generar_matriz(pagina, tipo)
+    assert "error" not in r, f"{tipo}: no se pinto: {r}"
+
+    visibles = pagina.evaluate(
+        # Dos tablas no usan el sufijo `-table-container`: win-expectancy-container
+        # y leverage-index-container. Buscar solo ese sufijo daba CERO visibles y
+        # el test fallaba por su cuenta, no por el sitio.
+        """() => Array.from(document.querySelectorAll('[id$="-container"]'))
+                .filter(c => /table|expectancy|leverage|index/.test(c.id))
+                .filter(c => !c.classList.contains('d-none') && c.offsetParent !== null)
+                .map(c => c.id)"""
+    )
+
+    assert len(visibles) == 1, (
+        f"{tipo}: quedaron {len(visibles)} contenedores visibles a la vez: {visibles}. "
+        f"Uno tapa al otro y parece que Generate no funciona."
+    )
+
+
+@pytest.mark.parametrize("tipo", TIPOS_DE_MATRIZ)
+def test_cada_tipo_pinta_filas_despues_de_pasar_por_otro(pagina, tipo):
+    """
+    Que la tabla se pinte VINIENDO DE OTRA. Generarla en solitario no prueba que
+    el cambio de tipo la deje en buen estado.
+    """
+    _generar_matriz(pagina, "WRC_COMPONENTS")
+    r = _generar_matriz(pagina, tipo)
+
+    assert "error" not in r, f"{tipo}: {r}"
+    assert r["filas"] > 0, f"{tipo}: sin filas tras venir de wRC Components"
+
+
+def test_el_csv_de_wrc_trae_los_decimales_COMPLETOS(pagina):
+    """
+    El fichero se descarga para CALCULAR con el, no para mirarlo.
+
+    En pantalla los valores van recortados para caber --lgwOBA a cinco decimales--
+    pero si el CSV lleva ese recorte, quien lo use arrastra el error a su wRAA y a
+    su wRC+ sin enterarse. Un lgwOBA redondeado a 0,31515 en vez de
+    0,3151500225067139 mueve el wRC+ de cualquier bateador.
+
+    Se compara CONTRA LO QUE SIRVIO LA API, no contra un numero escrito a mano:
+    la celda del CSV tiene que ser el mismo float, exacto.
+    """
+    r = _generar_matriz(pagina, "WRC_COMPONENTS")
+    assert "error" not in r, f"no se pinto: {r}"
+
+    crudo = pagina.evaluate(
+        """() => {
+            const d = currentTableData.wrc_components;
+            const f = (d.table_data || []).find(x => Number(x.season) === 2025);
+            return f ? {lgwOBA: f.League_Avg_OBP, escala: f.WOBA_Scale,
+                        rpa: f.lg_r_per_pa, cuota: f.lg_share_pa_pitchers} : null;
+        }"""
+    )
+    assert crudo, "no hay fila de 2025 en los datos servidos"
+
+    pagina.select_option("#wrc-components-format-select", "csv")
+    with pagina.expect_download(timeout=15000) as info:
+        pagina.locator("#download-wrc-components-btn").click()
+    contenido = pathlib.Path(info.value.path()).read_text(encoding="utf-8")
+
+    lineas = [ln for ln in contenido.splitlines() if ln.strip()]
+    cabecera = [c.strip().strip('"') for c in lineas[0].split(",")]
+    fila = next((ln.split(",") for ln in lineas[1:] if ln.split(",")[0] == "2025"), None)
+    assert fila, "el CSV no trae la temporada 2025"
+    celdas = dict(zip(cabecera, fila, strict=False))
+
+    esperado = {
+        "lgwOBA": crudo["lgwOBA"],
+        "wOBA Scale": crudo["escala"],
+        "lgR/PA": crudo["rpa"],
+        "Pitcher PA %": crudo["cuota"],
+    }
+    for etiqueta, valor in esperado.items():
+        assert etiqueta in celdas, f"falta la columna {etiqueta!r} en el CSV"
+        assert float(celdas[etiqueta]) == float(valor), (
+            f"{etiqueta}: el CSV trae {celdas[etiqueta]} y la API sirvio {valor}. "
+            f"Se perdio precision por el camino."
+        )
+
+    # Y que no sea el valor de PANTALLA: cinco decimales no bastan para el lgwOBA.
+    assert len(celdas["lgwOBA"].split(".")[-1]) > 5, (
+        f"el CSV trae el lgwOBA recortado a pantalla: {celdas['lgwOBA']}"
+    )
+
+
+def test_el_json_de_wrc_trae_los_decimales_COMPLETOS(pagina):
+    """
+    Lo mismo que el CSV, pero el JSON se genera en OTRA funcion --convertToJSON--
+    y ya nos paso con RE Impact que una cadena estuviera bien y la otra no.
+    Probar solo una de las dos deja la mitad sin vigilar.
+    """
+    import json as _json
+
+    r = _generar_matriz(pagina, "WRC_COMPONENTS")
+    assert "error" not in r, f"no se pinto: {r}"
+
+    crudo = pagina.evaluate(
+        """() => {
+            const d = currentTableData.wrc_components;
+            const f = (d.table_data || []).find(x => Number(x.season) === 2025);
+            return f ? {lgwOBA: f.League_Avg_OBP, escala: f.WOBA_Scale,
+                        rpa: f.lg_r_per_pa, cuota: f.lg_share_pa_pitchers} : null;
+        }"""
+    )
+    assert crudo, "no hay fila de 2025 en los datos servidos"
+
+    pagina.select_option("#wrc-components-format-select", "json")
+    with pagina.expect_download(timeout=15000) as info:
+        pagina.locator("#download-wrc-components-btn").click()
+    datos = _json.loads(pathlib.Path(info.value.path()).read_text(encoding="utf-8"))
+
+    filas = datos.get("data") or []
+    assert filas, "el JSON no trae datos"
+    fila = next((f for f in filas if int(f.get("Season")) == 2025), None)
+    assert fila, "el JSON no trae la temporada 2025"
+
+    for etiqueta, valor in {
+        "lgwOBA": crudo["lgwOBA"],
+        "wOBA Scale": crudo["escala"],
+        "lgR/PA": crudo["rpa"],
+        "Pitcher PA %": crudo["cuota"],
+    }.items():
+        assert etiqueta in fila, f"falta la clave {etiqueta!r} en el JSON"
+        assert float(fila[etiqueta]) == float(valor), (
+            f"{etiqueta}: el JSON trae {fila[etiqueta]} y la API sirvio {valor}"
+        )
+
+    assert len(repr(float(fila["lgwOBA"])).split(".")[-1]) > 5, (
+        f"el JSON trae el lgwOBA recortado a pantalla: {fila['lgwOBA']}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# UN SOLO ESTILO DE HEATMAP EN TODO EL SITIO
+#
+# Al anadir wRC Components pinte el fondo del <td> entero. El resto del sitio
+# pinta una PILDORA dentro de la celda --padding, borde redondeado, ancho minimo--
+# y la diferencia se ve a simple vista: la celda queda a medias entre los bordes.
+#
+# El test de "el heatmap pinta" daba verde igualmente, porque pintaba. Lo que no
+# comprobaba nadie es que pintara COMO LAS DEMAS.
+# ---------------------------------------------------------------------------
+
+TIPOS_CON_HEATMAP = ["RE24", "RE288", "LINEAR_WEIGHTS", "WOBA_COEFFS",
+                     "PYTHAG_EXPONENTS", "RUNS_PER_WIN", "WRC_COMPONENTS"]
+
+
+def _firmas_de_heatmap(pagina, tipo):
+    """Recoge la forma de los elementos coloreados: que etiqueta y que estilo."""
+    r = _generar_matriz(pagina, tipo)
+    if "error" in r:
+        return None
+    return pagina.evaluate(
+        """() => {
+            const cont = Array.from(document.querySelectorAll('[id$="-container"]'))
+                .find(c => !c.classList.contains('d-none') && c.offsetParent !== null
+                        && c.querySelector('tbody tr'));
+            if (!cont) return [];
+            const pintados = Array.from(cont.querySelectorAll('tbody td, tbody td span'))
+                .filter(e => e.style.backgroundColor && e.style.backgroundColor !== 'transparent');
+            return [...new Set(pintados.map(e => [
+                e.tagName,
+                e.style.padding || '(sin padding)',
+                e.style.borderRadius || '(sin radio)',
+                e.style.display || '(sin display)',
+                e.style.minWidth || '(sin ancho minimo)'
+            ].join(' | ')))];
+        }"""
+    )
+
+
+def test_el_heatmap_se_pinta_IGUAL_en_todas_las_tablas(pagina):
+    """
+    Recorre las tablas con heatmap y exige UNA sola forma de celda coloreada.
+
+    No compara contra un estilo escrito aqui a mano: compara las tablas entre si.
+    Si manana se cambia el estilo del sitio, este test no estorba; solo se queja
+    cuando una tabla se sale del resto, que es lo que hay que impedir.
+    """
+    por_tabla = {}
+    for tipo in TIPOS_CON_HEATMAP:
+        firmas = _firmas_de_heatmap(pagina, tipo)
+        if firmas:
+            por_tabla[tipo] = firmas
+
+    assert len(por_tabla) >= 3, f"solo se pudieron medir {list(por_tabla)}"
+
+    todas = {f for firmas in por_tabla.values() for f in firmas}
+
+    assert len(todas) == 1, (
+        "el heatmap se pinta de mas de una forma en el sitio:\n  "
+        + "\n  ".join(f"{t}: {sorted(f)}" for t, f in sorted(por_tabla.items()))
+    )
+
+
+@pytest.mark.parametrize("tipo", ["WOBA_COEFFS", "RE24", "FIP_CONST"])
+def test_al_CAMBIAR_el_desplegable_sin_generar_wrc_desaparece(pagina, tipo):
+    """
+    EL CASO QUE MIS TESTS NO COGIAN.
+
+    Los otros generan wRC Components y luego generan otra tabla: ahi si se
+    escondia, porque el escondite estaba en la ruta de Generate. Pero el usuario
+    solo DESPLIEGA el selector, y en ese momento la tabla vieja se queda en
+    pantalla con los datos de otra cosa.
+
+    Aqui NO se pulsa Generate a proposito.
+    """
+    _generar_matriz(pagina, "WRC_COMPONENTS")
+
+    visibles = pagina.evaluate(
+        """async (tipo) => {
+            const ms = document.querySelector('#matrix_type');
+            ms.value = tipo;
+            ms.dispatchEvent(new Event('change', {bubbles: true}));
+            await new Promise(r => setTimeout(r, 700));
+            return Array.from(document.querySelectorAll('[id$="-container"]'))
+                .filter(c => /table|expectancy|leverage|index/.test(c.id))
+                .filter(c => !c.classList.contains('d-none') && c.offsetParent !== null)
+                .map(c => c.id);
+        }""",
+        tipo,
+    )
+
+    assert "wrc-components-table-container" not in visibles, (
+        f"se eligio {tipo} en el desplegable y wRC Components sigue en pantalla. "
+        f"Visibles: {visibles}"
+    )

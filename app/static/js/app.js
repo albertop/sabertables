@@ -576,6 +576,7 @@ function syncAllHeatmapToggles(isEnabled) {
         're288-heatmap-toggle',
         'park-factors-heatmap-toggle',
         'woba-heatmap-toggle',
+        'wrc-components-heatmap-toggle',
         'linear-weights-heatmap-toggle',
         'r24-frequencies-heatmap-toggle',
         'win-expectancy-heatmap-toggle',
@@ -794,6 +795,8 @@ function enableDownloadButton(tableType) {
         buttonId = 'download-probabilities-btn';
     } else if (tableType === 're288' || tableType === 're288_freq' || tableType === 're288_trans') {
         buttonId = 'download-re288-btn';
+    } else if (tableType === 'wrc_components') {
+        buttonId = 'download-wrc-components-btn';
     } else if (tableType === 'woba') {
         buttonId = 'download-woba-btn';
     } else if (tableType === 'fip') {
@@ -879,6 +882,11 @@ function setupEventListeners() {
         });
     }
     
+    const downloadWRCBtn = document.getElementById('download-wrc-components-btn');
+    if (downloadWRCBtn) {
+        downloadWRCBtn.addEventListener('click', () => handleDownload('wrc_components'));
+    }
+
     const downloadWOBABtn = document.getElementById('download-woba-btn');
     if (downloadWOBABtn) {
         downloadWOBABtn.addEventListener('click', () => handleDownload('woba'));
@@ -955,6 +963,7 @@ function setupEventListeners() {
         document.getElementById('re24-probabilities-table-container')?.classList.add('d-none');
         document.getElementById('re288-table-container')?.classList.add('d-none');
         document.getElementById('woba-table-container')?.classList.add('d-none');
+        document.getElementById('wrc-components-table-container')?.classList.add('d-none');
         document.getElementById('fip-table-container')?.classList.add('d-none');
         document.getElementById('pythag-exponents-table-container')?.classList.add('d-none');
         document.getElementById('runs-per-win-table-container')?.classList.add('d-none');
@@ -1066,6 +1075,12 @@ function setupEventListeners() {
     });
 
     const heatmapBindings = [
+        {
+            id: 'wrc-components-heatmap-toggle',
+            rerender: () => {
+                if (currentTableData.wrc_components) renderWRCComponentsPage();
+            }
+        },
         {
             id: 're24-probabilities-heatmap-toggle',
             rerender: () => {
@@ -1326,7 +1341,7 @@ function renderHeatmapBadge(displayValue, rawValue, minValue, maxValue, options 
 
     const {
         reverse = false,
-        minWidth = '50px',
+        minWidth = '60px',
         padding = '2px 6px',
         borderRadius = '3px',
         fontSize = null
@@ -1672,6 +1687,7 @@ async function handleGenerateTable() {
             enableDownloadButton('re288_trans');
         } else if (matrixType === 'WRC_COMPONENTS') {
             renderWRCComponentsTable(data);
+            enableDownloadButton('wrc_components');
         } else if (matrixType === 'WOBA_COEFFS') {
             renderWOBATable(data);
             enableDownloadButton('woba');
@@ -2735,6 +2751,10 @@ function getDownloadConfig(tableType, data) {
             formatSelectorId: 're288-format-select',
             tableNamePart: `RE288_Transitions_${data.transition_mode === 2 ? 'Probability' : (data.transition_mode === 3 ? 'ExpectedRunExpectancy' : 'RunExpectancy')}_${data.transition_type === 'B' ? 'ToBall' : data.transition_type === 'S' ? 'ToStrike' : 'ToBallInPlay'}`
         },
+        wrc_components: {
+            formatSelectorId: 'wrc-components-format-select',
+            tableNamePart: 'wRC_Components'
+        },
         woba: {
             formatSelectorId: 'woba-format-select',
             tableNamePart: 'wOBA_Coefficients'
@@ -2797,7 +2817,7 @@ function getDownloadConfig(tableType, data) {
 }
 
 function buildDownloadFilename(tableType, data, tableNamePart, format) {
-    if (tableType === 'woba' || tableType === 'fip' || tableType === 'pythag_exponents' || tableType === 'runs_per_win') {
+    if (tableType === 'woba' || tableType === 'fip' || tableType === 'pythag_exponents' || tableType === 'runs_per_win' || tableType === 'wrc_components') {
         return `${tableNamePart}.${format}`;
     }
 
@@ -2914,7 +2934,30 @@ function handleDownload(tableType) {
     }
 }
 
+// Las filas de wRC Components son planas: una por temporada, columnas fijas. Se
+// generan desde WRC_COMPONENTS_COLUMNAS para que el fichero traiga EXACTAMENTE lo
+// que se ve, con las mismas etiquetas.
+function wrcComponentsFilas(data) {
+    return (data.table_data || []).map(fila => Object.fromEntries(
+        WRC_COMPONENTS_COLUMNAS.map(([clave, etiqueta]) => {
+            const v = fila[clave];
+            // SIN redondear y SIN formatear. La pantalla recorta para caber; el
+            // fichero es para calcular con el, y un lgwOBA a cinco decimales ya
+            // pierde precision frente al dato real.
+            return [etiqueta, (v === null || v === undefined) ? '' : v];
+        })
+    ));
+}
+
 function convertToCSV(data) {
+    if (data.matrix_type === 'WRC_COMPONENTS') {
+        const filas = wrcComponentsFilas(data);
+        const cabeceras = WRC_COMPONENTS_COLUMNAS.map(([, etiqueta]) => etiqueta);
+        return [cabeceras.map(h => `"${h}"`).join(',')]
+            .concat(filas.map(f => cabeceras.map(h => f[h]).join(',')))
+            .join(String.fromCharCode(10));
+    }
+
     // Handle wOBA Coefficients separately
     if (data.matrix_type === 'WOBA_COEFFS') {
         const rows = [];
@@ -3494,6 +3537,14 @@ function convertToCSV(data) {
 }
 
 function convertToJSON(data) {
+    if (data.matrix_type === 'WRC_COMPONENTS') {
+        return JSON.stringify({
+            matrix_type: 'WRC_COMPONENTS',
+            note: 'Regular season only. Park factors (PF) for wRC+ are published in the Park Factors table.',
+            data: wrcComponentsFilas(data)
+        }, null, 2);
+    }
+
     // Handle wOBA Coefficients separately
     if (data.matrix_type === 'WOBA_COEFFS') {
         const jsonData = {
@@ -3934,41 +3985,164 @@ let reImpactTtoPagination = {
 // por temporada, y no necesitan paginacion ni ordenacion. Menos codigo compartido
 // es menos sitios donde el proximo tipo se olvide.
 const WRC_COMPONENTS_COLUMNAS = [
-    ['season',              'Season',            0],
-    ['League_Avg_OBP',      'lgwOBA',            5],
-    ['WOBA_Scale',          'wOBA Scale',        5],
-    ['lg_r_per_pa',         'lgR/PA',            5],
-    ['lg_wrc_per_pa_sin_p', 'lgwRC/PA (non-P)',  5],
-    ['lg_woba_sin_p',       'lgwOBA (non-P)',    5],
+    ['season',              'Season',            'anio'],
+    // Tres decimales EN PANTALLA. El fichero descargado sigue llevando el valor
+    // completo sin redondear: lo de arriba es para leerlo, lo de abajo para
+    // calcular con ello. Hay dos tests que lo vigilan.
+    ['League_Avg_OBP',      'lgwOBA',            3],
+    ['WOBA_Scale',          'wOBA Scale',        3],
+    ['lg_r_per_pa',         'lgR/PA',            3],
+    ['lg_wrc_per_pa_sin_p', 'lgwRC/PA (non-P)',  3],
+    ['lg_woba_sin_p',       'lgwOBA (non-P)',    3],
     ['lg_pa',               'League PA',         0],
     ['lg_runs',             'League Runs',       0],
-    ['lg_share_pa_pitchers','Pitcher PA %',      3]
+    ['lg_share_pa_pitchers','Pitcher PA %',      'pct']
 ];
+
+// El ano NO lleva separador de miles --salia "2,025"-- y la cuota de apariciones
+// de lanzadores es una FRACCION: 0,00025 se ve como 0,000 si no se pasa a
+// porcentaje, y parece que la columna esta vacia.
+function formatearWRC(v, dec) {
+    if (dec === 'anio') return String(v);
+    if (dec === 'pct') return (Number(v) * 100).toFixed(2) + '%';
+    if (dec === 0) return Number(v).toLocaleString();
+    return Number(v).toFixed(dec);
+}
+
+let wrcComponentsPagination = {
+    currentPage: 1,
+    rowsPerPage: 12,
+    totalRows: 0,
+    data: null,
+    sortColumn: 'season',
+    sortDirection: 'desc'
+};
+
+// EL HEATMAP VA POR COLUMNA, NO POR TABLA. Las escalas no son comparables entre
+// si: lgwOBA vale 0,31 y League PA vale 182.838. Con una escala comun toda la
+// tabla saldria del mismo color menos las dos columnas de conteos, y el heatmap
+// no diria nada.
+function wrcRangosPorColumna(filas) {
+    const rangos = {};
+    WRC_COMPONENTS_COLUMNAS.forEach(([clave]) => {
+        if (clave === 'season') return;
+        const vals = filas.map(f => Number(f[clave])).filter(v => Number.isFinite(v));
+        if (vals.length) rangos[clave] = [Math.min(...vals), Math.max(...vals)];
+    });
+    return rangos;
+}
+
+// getHeatmapColor es LA DEL SITIO, la misma que usan RE24, wOBA y las demas. Yo
+// habia inventado una escala naranja propia que no se parecia a ninguna.
+function wrcColorCelda(clave, valor, rangos) {
+    const r = rangos[clave];
+    if (!r) return null;
+    return getHeatmapColor(valor, r[0], r[1]);
+}
+
+function renderWRCComponentsHeaders() {
+    const icono = (col) => wrcComponentsPagination.sortColumn !== col
+        ? '<span style="opacity: 0.3;">⇅</span>'
+        : (wrcComponentsPagination.sortDirection === 'asc' ? '▲' : '▼');
+    const head = document.getElementById('wrc-components-table-head');
+    if (!head) return;
+    head.innerHTML = '<tr>' + WRC_COMPONENTS_COLUMNAS.map(([clave, etiqueta]) =>
+        `<th class="bg-primary text-center" style="cursor: pointer; user-select: none;" `
+        + `data-accion="sortWRCComponents" data-clave="${clave}">${etiqueta} ${icono(clave)}</th>`
+    ).join('') + '</tr>';
+}
+
+function renderWRCComponentsPage() {
+    const body = document.getElementById('wrc-components-table-body');
+    if (!body || !wrcComponentsPagination.data) return;
+
+    const col = wrcComponentsPagination.sortColumn;
+    const dir = wrcComponentsPagination.sortDirection === 'asc' ? 1 : -1;
+    const ordenadas = [...wrcComponentsPagination.data].sort((a, b) => {
+        const x = Number(a[col]), y = Number(b[col]);
+        return (x < y ? -1 : x > y ? 1 : 0) * dir;
+    });
+
+    const toggle = document.getElementById('wrc-components-heatmap-toggle');
+    // El heatmap se calcula sobre LAS 116 TEMPORADAS, no sobre la pagina visible:
+    // si no, el color cambiaria al pasar de pagina y no significaria nada.
+    const rangos = (toggle?.checked !== false) ? wrcRangosPorColumna(wrcComponentsPagination.data) : {};
+
+    const ini = (wrcComponentsPagination.currentPage - 1) * wrcComponentsPagination.rowsPerPage;
+    const pagina = ordenadas.slice(ini, ini + wrcComponentsPagination.rowsPerPage);
+
+    body.innerHTML = pagina.map(fila => '<tr>' + WRC_COMPONENTS_COLUMNAS.map(([clave, , dec]) => {
+        const v = fila[clave];
+        if (v === null || v === undefined) return '<td class="text-center">&mdash;</td>';
+        const texto = formatearWRC(v, dec);
+        const r = rangos[clave];
+        // renderHeatmapBadge ES EL HELPER DEL SITIO. Yo me habia escrito el span a
+        // mano y por eso esta tabla se salia del resto. Usandolo, si manana cambia
+        // el estilo del heatmap cambia en UN sitio y esta lo sigue sola.
+        if (!r) return `<td class="text-center">${texto}</td>`;
+        return `<td class="text-center">${renderHeatmapBadge(texto, v, r[0], r[1])}</td>`;
+    }).join('') + '</tr>').join('');
+}
+
+function renderWRCComponentsPagination() {
+    renderPaginationControls({
+        containerId: 'wrc-components-pagination',
+        currentPage: wrcComponentsPagination.currentPage,
+        totalPages: Math.max(1, Math.ceil(wrcComponentsPagination.totalRows / wrcComponentsPagination.rowsPerPage)),
+        changeHandlerName: 'changeWRCComponentsPage',
+        labels: { first: '⏮', previous: '◀', next: '▶', last: '⏭' }
+    });
+}
+
+function changeWRCComponentsPage(newPage) {
+    const totalPages = Math.ceil(wrcComponentsPagination.totalRows / wrcComponentsPagination.rowsPerPage);
+    setPaginationPage(wrcComponentsPagination, newPage, totalPages, () => {
+        renderWRCComponentsPage();
+        renderWRCComponentsPagination();
+    });
+}
+
+function sortWRCComponents(clave) {
+    if (wrcComponentsPagination.sortColumn === clave) {
+        wrcComponentsPagination.sortDirection =
+            wrcComponentsPagination.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        wrcComponentsPagination.sortColumn = clave;
+        wrcComponentsPagination.sortDirection = 'desc';
+    }
+    wrcComponentsPagination.currentPage = 1;
+    renderWRCComponentsHeaders();
+    renderWRCComponentsPage();
+    renderWRCComponentsPagination();
+}
 
 function renderWRCComponentsTable(data) {
     currentTableData.wrc_components = data;
     const titulo = document.getElementById('wrc-components-table-title');
-    const sub = document.getElementById('wrc-components-table-subtitle');
+    const sub = document.getElementById('wrc-components-table-title-subtitle');
     const head = document.getElementById('wrc-components-table-head');
     const body = document.getElementById('wrc-components-table-body');
     if (!head || !body) { console.error('wRC Components table elements not found'); return; }
 
     if (titulo) titulo.textContent = 'wRC Components by Season';
-    if (sub) sub.textContent = 'Everything needed to compute wRAA, wRC and wRC+ for any batter. '
-        + 'wRAA = ((wOBA − lgwOBA) / wOBA Scale) × PA. '
-        + 'wRC = (((wOBA − lgwOBA) / wOBA Scale) + lgR/PA) × PA. '
-        + 'wRC+ = ((wRAA/PA + lgR/PA) + (lgR/PA − PF × lgR/PA)) / lgwRC/PA (non-P) × 100. '
-        + 'Park factors (PF) are published in the Park Factors table. Regular season only.';
+    // Al estilo de wOBA Coefficients y FIP Components: la primera linea dice QUE
+    // SON estos numeros, la segunda define el termino que no se explica solo.
+    if (sub) sub.textContent = 'wRC components are the league-wide reference values that '
+        + 'convert a batter’s wOBA into runs, on the scoring scale of each season.';
+    const sub2 = document.getElementById('wrc-components-table-subtitle-2');
+    if (sub2) sub2.textContent = 'lgwRC/PA (non-P) is the calibration term that sets wRC+ to '
+        + '100 for a league-average batter, measured with pitchers’ plate appearances excluded.';
 
-    head.innerHTML = '<tr>' + WRC_COMPONENTS_COLUMNAS
-        .map(([, etiqueta]) => `<th scope="col">${etiqueta}</th>`).join('') + '</tr>';
+    wrcComponentsPagination.data = data.table_data || [];
+    wrcComponentsPagination.totalRows = wrcComponentsPagination.data.length;
+    wrcComponentsPagination.currentPage = 1;
 
-    body.innerHTML = (data.table_data || []).map(fila => '<tr>' + WRC_COMPONENTS_COLUMNAS
-        .map(([clave, , dec]) => {
-            const v = fila[clave];
-            if (v === null || v === undefined) return '<td>&mdash;</td>';
-            return `<td>${dec ? Number(v).toFixed(dec) : Number(v).toLocaleString()}</td>`;
-        }).join('') + '</tr>').join('');
+    const conteo = document.getElementById('wrc-components-season-count');
+    if (conteo) conteo.textContent = `${wrcComponentsPagination.totalRows} seasons`;
+
+    renderWRCComponentsHeaders();
+    renderWRCComponentsPage();
+    renderWRCComponentsPagination();
 }
 
 function renderWOBATable(data) {
@@ -4097,7 +4271,7 @@ function renderWOBAPage() {
         const displayValue = value.toFixed(3);
         if (heatmapEnabled && minMax[columnKey]) {
             const { bgColor, textColor } = getHeatmapColor(value, minMax[columnKey].min, minMax[columnKey].max);
-            return `<span style="background-color: ${bgColor}; color: ${textColor}; padding: 2px 6px; border-radius: 3px; display: inline-block; min-width: 50px;">${displayValue}</span>`;
+            return `<span style="background-color: ${bgColor}; color: ${textColor}; padding: 2px 6px; border-radius: 3px; display: inline-block; min-width: 60px;">${displayValue}</span>`;
         }
         return displayValue;
     };
@@ -4729,7 +4903,7 @@ function renderParkFactorsPage() {
             const displayValue = value.toFixed(3);
             if (heatmapEnabled && minMax[columnKey]) {
                 const { bgColor, textColor } = getHeatmapColor(value, minMax[columnKey].min, minMax[columnKey].max);
-                return `<span style="background-color: ${bgColor}; color: ${textColor}; padding: 2px 6px; border-radius: 3px; display: inline-block; min-width: 50px;">${displayValue}</span>`;
+                return `<span style="background-color: ${bgColor}; color: ${textColor}; padding: 2px 6px; border-radius: 3px; display: inline-block; min-width: 60px;">${displayValue}</span>`;
             }
             return displayValue;
         };
@@ -4926,7 +5100,7 @@ function renderLinearWeightsTable(data, resetPage = true) {
                 const formatted = avgValue !== null && avgValue !== undefined ? Number(avgValue).toFixed(3) : '—';
                 
                 if (heatmapEnabled && avgValue !== null && avgValue !== undefined && !isNaN(avgValue)) {
-                    const badgeHTML = renderHeatmapBadge(formatted, avgValue, minValue, maxValue, { minWidth: '50px' });
+                    const badgeHTML = renderHeatmapBadge(formatted, avgValue, minValue, maxValue, { minWidth: '60px' });
                     cells.push(`<td class="text-center">${appendReliabilityMarkerInsideBadge(badgeHTML, avgN, reliabilityStats)}</td>`);
                 } else {
                     const cellContent = (avgValue !== null && avgValue !== undefined && !isNaN(avgValue))
@@ -4943,7 +5117,7 @@ function renderLinearWeightsTable(data, resetPage = true) {
                 const formatted = value !== null && value !== undefined ? Number(value).toFixed(3) : '—';
                 
                 if (heatmapEnabled && value !== null && value !== undefined && !isNaN(value)) {
-                    const badgeHTML = renderHeatmapBadge(formatted, value, minValue, maxValue, { minWidth: '50px' });
+                    const badgeHTML = renderHeatmapBadge(formatted, value, minValue, maxValue, { minWidth: '60px' });
                     cells.push(`<td class="text-center">${appendReliabilityMarkerInsideBadge(badgeHTML, nValue, reliabilityStats)}</td>`);
                 } else {
                     const cellContent = (value !== null && value !== undefined && !isNaN(value))
@@ -6486,7 +6660,7 @@ function renderSwingTakeByCountPage() {
             hMax,
             reliabilityStats,
             getColorFn: (v, _min, _max) => getSwingTakeHeatmapColor(v),
-            minWidth: '50px',
+            minWidth: '60px',
             decimals: 1
         });
     };
@@ -6715,7 +6889,7 @@ function renderSBBreakevenByCountPage() {
             hMin,
             hMax,
             reliabilityStats,
-            minWidth: '50px',
+            minWidth: '60px',
             decimals: 1
         });
     };
@@ -7489,13 +7663,30 @@ function renderReImpactPage() {
             // ausencia de "usually".
             'sac_bunt': 'How many runs your team loses when executing a successful sacrifice bunt.',
             'gidp': 'How many runs a double play costs compared with a comparable ground out that retires only one runner.',
+            // Los tres en carreras. Se redactan como pregunta, igual que las
+            // tablas de RE24, y dicen QUE se gana y QUE se arriesga: sin la
+            // segunda mitad el numero se lee como si robar fuera gratis.
+            'steal_runs': 'What is a stolen base attempt worth in runs — what you gain when the runner makes it, weighed against what you lose when he is thrown out?',
+            'running_runs': 'What is it worth in runs to take the extra base — stretching your own hit or advancing on someone else’s — weighed against the risk of being thrown out?',
+            'tagging_runs': 'What is it worth in runs to tag up and advance after a fly ball is caught, weighed against the risk of being thrown out?',
             'ibb': 'How many runs your team usually gains or loses when choosing to intentionally walk a batter.',
             'ph_position': 'What pinch-hitting for a position player is usually worth, by handedness matchup and outs.',
             'ph_pitcher': 'What pinch-hitting for the pitcher is usually worth, by handedness matchup and outs.',
             'platoon_baseline': 'How many runs are typically gained or lost by pitcher-batter handedness matchup state.',
             'tto': 'How run scoring tends to change each time a specific batter faces the same pitcher again (1st, 2nd, and 3rd+ times faced).'
         };
-        subtitleEl.textContent = subtitles[analysisType] || '';
+        // La nota solo aparece en modo porcentaje, que es cuando hace falta.
+        //
+        // Los porcentajes son relativos a la EXPECTATIVA DE PARTIDA, no partes de
+        // un total, asi que pueden pasar del 100%: con corredor en tercera y un
+        // out, tag-up gana 0,730 carreras sobre las 0,570 que ya valia la
+        // situacion, y eso es un 128%. No es un error --es que se gana mas de lo
+        // que habia-- pero sin decirlo se lee como un fallo.
+        const enPorcentaje = document.getElementById('re-impact-percent-toggle')?.checked === true;
+        const nota = ' Percentages are relative to the run expectancy you started with, '
+                   + 'not a share of a total, so they can exceed 100% when the play gains '
+                   + 'more than the situation was already worth.';
+        subtitleEl.textContent = (subtitles[analysisType] || '') + (enPorcentaje ? nota : '');
     }
     
     // Update event count
@@ -7937,7 +8128,7 @@ function renderBreakevenPercentCell(value, nValue, {
     reverse = BREAKEVEN_HEATMAP_REVERSE,
     getColorFn = getHeatmapColor,
     reliabilityStats,
-    minWidth = '50px',
+    minWidth = '60px',
     decimals = 2
 }) {
     return renderMetricCellWithReliability(value, nValue, {
@@ -8774,7 +8965,7 @@ function renderSwingTakeZonePage() {
             hMax: 100,
             reliabilityStats,
             getColorFn: (v, _min, _max) => getSwingTakeHeatmapColor(v),
-            minWidth: '50px',
+            minWidth: '60px',
             decimals: 1
         });
     };
@@ -9078,4 +9269,6 @@ registrarAccion('changeWOBAPage', changeWOBAPage);
 registrarAccion('changeWinExpectancyPage', changeWinExpectancyPage);
 registrarAccion('changeWinProbabilityAddedPage', changeWinProbabilityAddedPage);
 registrarAccion('sortWOBA', sortWOBA);
+registrarAccion('sortWRCComponents', sortWRCComponents);
+registrarAccion('changeWRCComponentsPage', changeWRCComponentsPage);
 registrarAccion('sortParkFactors', sortParkFactors);

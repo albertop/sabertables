@@ -476,7 +476,7 @@ def test_los_matrix_types_con_parametros_responden(matrix_type, extra):
     assert isinstance(cuerpo, dict) and cuerpo, f'{matrix_type} devolvio un cuerpo vacio'
 
 
-def test_el_barrido_de_humo_cubre_los_dieciocho_matrix_types():
+def test_el_barrido_de_humo_cubre_todos_los_matrix_types():
     """
     Los dos barridos juntos deben cubrir el patron de TableRequest.
 
@@ -493,6 +493,8 @@ def test_el_barrido_de_humo_cubre_los_dieciocho_matrix_types():
     simples = {
         'RE24', 'RE24_PCT', 'RE288', 'RE288_FREQ', 'R24_FREQUENCIES',
         'WOBA_COEFFS', 'FIP_CONST', 'PYTHAG_EXPONENTS', 'RUNS_PER_WIN',
+        # Como WOBA_COEFFS: una fila por temporada, sin parametros.
+        'WRC_COMPONENTS',
     }
     cubiertos = simples | set(MATRIX_TYPES_CON_PARAMETROS)
 
@@ -1526,3 +1528,77 @@ def test_cada_analisis_tiene_texto_de_pie(tipo):
     pies = js.split("const analysisTypeFooterLabel = {", 1)[1].split("}[analysisType]", 1)[0]
 
     assert f"'{tipo}':" in pies, f"{tipo} no tiene texto de pie"
+
+
+# ---------------------------------------------------------------------------
+# hideTableContainers: la lista tiene que estar COMPLETA
+# ---------------------------------------------------------------------------
+
+def test_hideTableContainers_esconde_TODAS_las_tablas_que_existen():
+    """
+    LA CAUSA RAIZ, VIGILADA EN SU SITIO.
+
+    `hideTableContainers` es una lista escrita a mano, un `getElementById` por
+    tabla. Al anadir wRC Components se me olvido su linea, y el efecto fue que al
+    elegir otro tipo en el desplegable la tabla anterior se quedaba en pantalla
+    con el nombre de otra. Nada fallaba: solo se veian datos que no correspondian.
+
+    Los tests de navegador lo cogen despues, uno por camino. Este lo coge ANTES y
+    para siempre: si manana se anade una tabla y no se registra aqui, se pone rojo
+    sin que nadie tenga que acordarse de escribir el caso.
+    """
+    import re
+
+    raiz = Path(__file__).resolve().parent.parent
+    html = (raiz / 'app' / 'templates' / 'index.html').read_text(encoding='utf-8')
+    js = (raiz / 'app' / 'static' / 'js' / 'app.js').read_text(encoding='utf-8')
+
+    # Los contenedores de tabla que existen en la pagina: los que envuelven un
+    # <table>. Se descartan los que son de otra cosa (filtros, cabeceras...).
+    contenedores = set()
+    for m in re.finditer(r'id="([a-z0-9-]*-container)"', html):
+        cid = m.group(1)
+        trozo = html[m.end():m.end() + 4000]
+        if '<table' in trozo:
+            contenedores.add(cid)
+
+    assert len(contenedores) >= 10, f'solo se detectaron {len(contenedores)} contenedores'
+
+    cuerpo = js.split('const hideTableContainers = () => {', 1)[1].split('};', 1)[0]
+    registrados = set(re.findall(r"getElementById\('([a-z0-9-]*-container)'\)", cuerpo))
+
+    faltan = sorted(contenedores - registrados)
+
+    assert not faltan, (
+        f'estas tablas no se esconden al cambiar de tipo: {faltan}. '
+        f'Se quedaran en pantalla con los datos de otra tabla.'
+    )
+
+
+def test_todos_los_analisis_de_re_impact_tienen_subtitulo():
+    """
+    Cuatro analisis salieron a produccion sin subtitulo: Stolen Bases, Base
+    Running, Tag-up y Double Play. El mapa tiene un `|| ''` de respaldo, asi que
+    un tipo sin entrada no falla: pinta la tabla con el hueco en blanco y nadie se
+    entera hasta que alguien la mira.
+
+    Compara el desplegable contra el mapa. Al anadir un analisis nuevo, si se
+    olvida el subtitulo se pone rojo aqui.
+    """
+    import re
+
+    raiz = Path(__file__).resolve().parent.parent
+    html = (raiz / 'app' / 'templates' / 'index.html').read_text(encoding='utf-8')
+    js = (raiz / 'app' / 'static' / 'js' / 'app.js').read_text(encoding='utf-8')
+
+    bloque = re.search(r'id="re_impact_type".*?</select>', html, re.S)
+    assert bloque, 'no se encontro el desplegable de RE Impact'
+    tipos = set(re.findall(r'value="([a-z_]+)"', bloque.group(0)))
+    assert len(tipos) >= 8, f'solo se detectaron {tipos}'
+
+    mapa = js.split('const subtitles = {', 1)[1].split('};', 1)[0]
+    con_subtitulo = set(re.findall(r"'([a-z_]+)':", mapa))
+
+    faltan = sorted(tipos - con_subtitulo)
+
+    assert not faltan, f'analisis sin subtitulo: {faltan}. La tabla sale con el hueco en blanco.'

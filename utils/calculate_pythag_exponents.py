@@ -304,6 +304,18 @@ def save_pythag_data(df, df_team, data_dir=None):
                 'pythag_exponent_8yr', 'pythag_exponent_10yr', 'pythag_exponent_12yr']
     df_exponents = df[exp_cols].drop_duplicates().sort_values('season').reset_index(drop=True)
 
+    # JUEGOS DE LA TEMPORADA, publicados. Se suman los de los equipos y se dividen
+    # entre dos, porque cada partido aparece en los dos.
+    #
+    # Existe para poder VIGILAR la cobertura desde fuera. La vista filtraba
+    # `statusCode IN ('F','FT')` y dejaba fuera 176 partidos jugados en 42
+    # temporadas --'FR' de lluvia, 'FO', 'FG', 'RV'--; 2025 salia con 2.425 juegos
+    # en vez de 2.430. Nada fallaba: los exponentes se calculaban sobre temporadas
+    # incompletas y no habia forma de notarlo desde el parquet.
+    juegos = (df.groupby('season')['games_played'].sum() / 2).round().astype('int32')
+    df_exponents = df_exponents.merge(
+        juegos.rename('games_played').reset_index(), on='season', how='left')
+
     # Season-level Pythagenpat: weighted average of per-team ((RS+RA)/G)^0.287 by games_played
     pat_avg = (df.groupby('season')
                .apply(lambda g: np.average(g['pythag_exponent_pat'], weights=g['games_played']), include_groups=False)
@@ -312,7 +324,7 @@ def save_pythag_data(df, df_team, data_dir=None):
     df_exponents = df_exponents.merge(pat_avg, on='season')
 
     # --- Structure: one row per season with Pythagenpat as a separate column ---
-    df_final = df_exponents[['season', 'pythag_exponent', 'pythag_exponent_2yr',
+    df_final = df_exponents[['season', 'games_played', 'pythag_exponent', 'pythag_exponent_2yr',
                               'pythag_exponent_3yr', 'pythag_exponent_5yr',
                               'pythag_exponent_8yr', 'pythag_exponent_10yr',
                               'pythag_exponent_12yr', 'pythag_exponent_pat']].copy()
@@ -329,7 +341,7 @@ def save_pythag_data(df, df_team, data_dir=None):
     }, inplace=True)
 
     value_cols = ['1 year', '2 years', '3 years', '5 years', '8 years', '10 years', '12 years', 'Pythagenpat']
-    df_final = df_final[['season'] + value_cols]
+    df_final = df_final[['season', 'games_played'] + value_cols]
     df_final.sort_values('season', inplace=True)
     df_final.reset_index(drop=True, inplace=True)
 
@@ -338,12 +350,13 @@ def save_pythag_data(df, df_team, data_dir=None):
 
     # Type casting
     df_final['season'] = df_final['season'].astype('int32')
+    df_final['games_played'] = df_final['games_played'].astype('int32')
     for col in value_cols:
         df_final[col] = df_final[col].astype('float32')
         # Nullable: la ventana incompleta no tiene muestra, igual que no tiene valor.
         df_final[f'{col}_n'] = df_final[f'{col}_n'].astype('Int32')
 
-    df_final = df_final[['season'] + value_cols + [f'{c}_n' for c in value_cols]]
+    df_final = df_final[['season', 'games_played'] + value_cols + [f'{c}_n' for c in value_cols]]
 
     output_file = data_dir / "pythag_exponents.parquet"
     df_final.to_parquet(output_file, index=False, engine='pyarrow')
