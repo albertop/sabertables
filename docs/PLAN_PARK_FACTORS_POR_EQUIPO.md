@@ -44,14 +44,6 @@ La clave es `(PARK_ID, SEASON, HOME_TEAM_ID, SEASONS_AVG)` —el equipo dentro, 
 es lo que permite las dos filas de un estadio compartido— y un `CHECK` exige
 `SEASONS_EFF <= SEASONS_AVG`.
 
-
-`dbo.retroParkFactorsByTeam`, con `HOME_TEAM_ID`, `SEASONS_EFF`, `WINDOW_FROM`,
-`WINDOW_TO` y `G`. La vieja se queda intacta y sigue alimentando la tabla que ve
-el usuario.
-
-Cuesta 213 filas de espacio. A cambio, el peor caso posible es que la tabla nueva
-esté mal y la aplicación ni se entere.
-
 ### Paso 2 — El script R escribe DOS ficheros
 
 `park_factors_v2.R` ya calcula todo lo que hace falta. Solo tiene que emitir:
