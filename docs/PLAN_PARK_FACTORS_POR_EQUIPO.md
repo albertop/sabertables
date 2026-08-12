@@ -33,8 +33,8 @@ como están hoy, el plan se hizo mal.
 ### Paso 1 — Tabla nueva, nombre nuevo — HECHO (12 ago 2026)
 
 `dbo.retroParkFactorsByTeam` creada y **vacía**; se llena en el paso 2. El DDL
-está en `retrosheet/gen_files/park_factors/retroParkFactorsByTeam_ddl.sql`, junto
-al script R —fuera de este repositorio, como el resto de DDL de tablas base—.
+está en `retrosheet/scripts/retroParkFactorsByTeam_ddl.sql` —fuera de este
+repositorio, como el resto de DDL de tablas base—.
 
 Comprobado justo después de crearla: `retroParkFactors` sigue con 7.524 filas y
 sus diez columnas, la consulta del pipeline devuelve lo mismo sin un duplicado, y
