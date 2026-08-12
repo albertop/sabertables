@@ -114,7 +114,11 @@ cambio de esquema.
 - Cambiar `QUERY_PARK_FACTORS`.
 - Añadir columnas a `retroParkFactors`.
 
-## Copia de seguridad
+## Copia de seguridad — ya no existe (12 ago 2026)
 
-`dbo.retroParkFactors_bak_20260812`, 7.524 filas, el estado previo a todo esto.
-No borrar hasta que el plan esté cerrado y verificado.
+`dbo.retroParkFactors_bak_20260812` se borró tras comprobar que era **idéntica**
+a la tabla actual: mismas columnas, mismas claves, diferencia 0,0. No protegía
+nada que la tabla viva no tuviera ya.
+
+Y si hubiera que rehacerla, el camino existe: `retroParkFactors.csv` regenera
+esos valores exactos, verificado celda a celda (52.668 de 52.668).
