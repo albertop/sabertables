@@ -77,7 +77,19 @@ del paso 4 siguen verdes. **No se recargó**: sus valores ya eran idénticos.
 Y la comprobación que cierra el paso: el primero tiene que salir **byte a byte
 igual** al que produce el script actual. Si no, no se sigue.
 
-### Paso 3 — Parquet nuevo, consulta nueva
+### Paso 3 — Parquet nuevo, consulta nueva — HECHO (12 ago 2026)
+
+`QUERY_PARK_FACTORS_BY_TEAM` y el dataset `park_factors_by_team`, que escribe
+`parkFactorsByTeam.parquet` (7.737 filas, 15 columnas). `QUERY_PARK_FACTORS` no
+se toco.
+
+Generado con `--dataset park_factors_by_team` para no rozar los demas:
+**`parkFactors.parquet` conserva el mismo MD5 antes y despues**, `bf5e328c`.
+
+Cuatro tests nuevos, y el que importa es el que compara los DOS parquets: el
+factor es del parque, no del inquilino, asi que si divergieran tendriamos dos
+verdades para el mismo estadio y temporada, y cual gana dependeria de por donde
+entre el dato.
 
 `QUERY_PARK_FACTORS` no se toca. Se añade `QUERY_PARK_FACTORS_BY_TEAM` y su
 `parkFactorsByTeam.parquet`. Dos rutas separadas que no se cruzan.

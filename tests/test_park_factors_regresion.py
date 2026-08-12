@@ -120,3 +120,70 @@ def test_los_estadios_compartidos_no_se_multiplican_en_la_tabla(park_factors, te
         f"{temporada}: el mismo parque y equipo sale mas de una vez, que es el "
         f"producto cartesiano al cruzar con ballparks: {repetidos}"
     )
+
+
+# ---------------------------------------------------------------------------
+# El parquet NUEVO, el que lleva el equipo (paso 3 del plan)
+# ---------------------------------------------------------------------------
+
+PARQUET_POR_EQUIPO = RAIZ / "app" / "data" / "parkFactorsByTeam.parquet"
+
+
+@pytest.fixture(scope="module")
+def por_equipo() -> pd.DataFrame:
+    if not PARQUET_POR_EQUIPO.exists():
+        pytest.skip("no hay parkFactorsByTeam.parquet")
+    return pd.read_parquet(PARQUET_POR_EQUIPO)
+
+
+def test_el_parquet_por_equipo_tiene_clave_unica(por_equipo):
+    """Con el equipo dentro, la clave vuelve a ser unica. Sin el no lo era, y por
+    eso la tabla vieja perdia una de las dos filas de un estadio compartido."""
+    dup = por_equipo.duplicated(
+        subset=["PARK_ID", "SEASON", "HOME_TEAM_ID", "SEASONS"], keep=False
+    )
+
+    assert not dup.any(), f"{int(dup.sum())} filas con la clave repetida"
+
+
+def test_los_valores_son_LOS_MISMOS_que_en_el_parquet_de_siempre(por_equipo, park_factors):
+    """
+    LA GARANTIA DE QUE NO HAY DOS VERDADES.
+
+    El factor es del PARQUE, no del inquilino: los dos equipos de un estadio
+    compartido reciben el mismo numero. Si estos dos parquets divergieran,
+    tendriamos dos factores distintos para el mismo estadio y la misma temporada,
+    y cual gana dependeria de por donde entre el dato.
+    """
+    m = por_equipo.merge(park_factors, on=["PARK_ID", "SEASON", "SEASONS"],
+                         suffixes=("_eq", "_pf"))
+    assert len(m) == len(por_equipo), "hay filas por equipo sin su pareja en el parquet de siempre"
+
+    cols = ["PF_R", "PF_1B", "PF_2B", "PF_3B", "PF_HR", "PF_BB", "PF_SO"]
+    import numpy as np
+    dif = np.abs(m[[c + "_eq" for c in cols]].values.astype(float)
+                 - m[[c + "_pf" for c in cols]].values.astype(float))
+
+    assert float(dif.max()) < 1e-5, f"los dos parquets no dicen lo mismo: max {dif.max():.2e}"
+
+
+def test_la_ventana_efectiva_nunca_supera_la_pedida(por_equipo):
+    """
+    `SEASONS_EFF > SEASONS` seria imposible y significaria que el calculo de la
+    ventana esta mal. Que sea MENOR es normal y esperado en los bordes de la
+    serie: eso es lo que avisa de que la fila cambiara con datos nuevos.
+    """
+    malas = por_equipo[por_equipo["SEASONS_EFF"] > por_equipo["SEASONS"]]
+
+    assert malas.empty, f"{len(malas)} filas con ventana efectiva mayor que la pedida"
+
+
+def test_los_estadios_compartidos_estan_todos(por_equipo):
+    """71 parques-temporada con dos equipos. Es la razon de ser de este parquet:
+    en el de siempre solo cabia uno de los dos."""
+    de_un_ano = por_equipo[por_equipo["SEASONS"] == 1]
+    compartidos = de_un_ano.groupby(["PARK_ID", "SEASON"])["HOME_TEAM_ID"].nunique()
+
+    assert int((compartidos > 1).sum()) == 71, (
+        f"se esperaban 71 parques-temporada compartidos, hay {int((compartidos > 1).sum())}"
+    )

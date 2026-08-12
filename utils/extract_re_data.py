@@ -590,6 +590,45 @@ SELECT [PARK_ID]
 ORDER BY PARK_ID, SEASON, SEASONS_AVG;
 """
 
+# Los mismos factores, CON el equipo local. Tabla distinta a proposito.
+#
+# QUERY_PARK_FACTORS DE ARRIBA NO SE TOCA, y esa es la razon de que esto exista.
+# Anadirle HOME_TEAM_ID a la consulta de siempre habria roto la tabla de Park
+# Factors: la app cruza con `ballparks`, que ya tiene una fila por equipo, asi que
+# una segunda fila del lado de los factores produce un PRODUCTO CARTESIANO. Medido
+# antes de revertirlo: 1914 pasaba de 17 filas a 21, y dos de ellas emparejaban a
+# los Red Sox con el factor de los Braves. Ver
+# docs/PLAN_PARK_FACTORS_POR_EQUIPO.md.
+#
+# Los VALORES son identicos a los de parkFactors.parquet --el factor es del parque,
+# no del inquilino-- y lo unico que anade es el enlace al equipo, que es lo que
+# necesita wRC+, mas la ventana que se uso de verdad.
+#
+# SEASONS_EFF DICE SI LA FILA ES ESTABLE. La ventana centrada mira dos anos
+# adelante, asi que en el borde de la serie se recorta: el "5 anos" de la ultima
+# temporada son 3. Si SEASONS_EFF < SEASONS, esa fila CAMBIARA cuando lleguen
+# datos nuevos. Comprobado contra FanGraphs usando la fila cuya ventana coincide
+# con la suya: diferencia media de 0,33 puntos sobre 28 equipos.
+QUERY_PARK_FACTORS_BY_TEAM = """
+SELECT [PARK_ID]
+      ,[SEASON]
+      ,[HOME_TEAM_ID]
+      ,SEASONS_AVG as SEASONS
+      ,[SEASONS_EFF]
+      ,[WINDOW_FROM]
+      ,[WINDOW_TO]
+      ,[G]
+      ,[PF_R]
+      ,[PF_1B]
+      ,[PF_2B]
+      ,[PF_3B]
+      ,[PF_HR]
+      ,[PF_BB]
+      ,[PF_SO]
+  FROM [dbo].[retroParkFactorsByTeam]
+ORDER BY PARK_ID, SEASON, HOME_TEAM_ID, SEASONS_AVG;
+"""
+
 QUERY_LINEAR_WEIGHTS = """
 select * from
 (
@@ -1153,6 +1192,30 @@ DATASETS = [
             "PARK_ID": "string",
             "SEASON": "int32",
             "SEASONS": "int32",
+            "PF_R": "float32",
+            "PF_1B": "float32",
+            "PF_2B": "float32",
+            "PF_3B": "float32",
+            "PF_HR": "float32",
+            "PF_BB": "float32",
+            "PF_SO": "float32",
+        },
+        season_col="SEASON",
+    ),
+    Dataset(
+        key="park_factors_by_team",
+        title="Park Factors by Team",
+        query=QUERY_PARK_FACTORS_BY_TEAM,
+        output="parkFactorsByTeam.parquet",
+        dtypes={
+            "PARK_ID": "string",
+            "SEASON": "int32",
+            "HOME_TEAM_ID": "string",
+            "SEASONS": "int32",
+            "SEASONS_EFF": "int32",
+            "WINDOW_FROM": "int32",
+            "WINDOW_TO": "int32",
+            "G": "int32",
             "PF_R": "float32",
             "PF_1B": "float32",
             "PF_2B": "float32",
