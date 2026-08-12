@@ -400,3 +400,95 @@ def test_el_csv_descargado_trae_los_escenarios_de_la_tabla(pagina, analisis):
     assert len(lineas) - 1 >= filas_en_pantalla, (
         f"{analisis}: la tabla ensena {filas_en_pantalla} filas y el CSV trae {len(lineas) - 1}"
     )
+
+
+# ---------------------------------------------------------------------------
+# wRC Components (8.8): la tabla que da al investigador con que calcular
+# wRC, wRC+ y wRAA. ESTE TEST SE ESCRIBE ANTES QUE EL CABLEADO.
+# ---------------------------------------------------------------------------
+
+def _generar_matriz(pagina, tipo: str) -> dict:
+    """
+    Elige un tipo de matriz del selector principal, pulsa Generate y devuelve lo
+    que quedo pintado.
+
+    NO busca un contenedor por identificador a proposito. El cableado toca ocho
+    sitios de app.js y uno puede quedarse sin hacer: si el test conociera el id de
+    antemano, podria dar verde mirando una tabla que el usuario no ve. Busca LA
+    TABLA VISIBLE, que es lo que hay en la pantalla.
+    """
+    return pagina.evaluate(
+        """async (tipo) => {
+            const ms = document.querySelector('select[name="matrix_type"], #matrix_type');
+            if (!Array.from(ms.options).some(o => o.value === tipo)) {
+                return {error: 'el tipo no esta en el selector', opciones: ms.options.length};
+            }
+            ms.value = tipo;
+            ms.dispatchEvent(new Event('change', {bubbles: true}));
+            await new Promise(r => setTimeout(r, 500));
+
+            Array.from(document.querySelectorAll('button'))
+                 .filter(b => /generate/i.test(b.textContent))[0].click();
+            await new Promise(r => setTimeout(r, 3500));
+
+            const tabla = Array.from(document.querySelectorAll('table'))
+                .find(t => t.offsetParent !== null && t.querySelectorAll('tbody tr').length);
+            if (!tabla) return {error: 'ninguna tabla visible con filas'};
+
+            const filas = Array.from(tabla.querySelectorAll('tbody tr'));
+            return {
+                filas: filas.length,
+                celdasConValor: filas.reduce((acc, tr) => acc + Array.from(tr.cells)
+                    .filter(c => /[0-9]/.test(c.textContent)).length, 0),
+                cabeceras: (tabla.querySelector('thead')?.textContent || '')
+                           .replace(/\s+/g, ' ').trim(),
+                primera: filas[0].textContent.replace(/\s+/g, ' ').trim().slice(0, 120)
+            };
+        }""",
+        tipo,
+    )
+
+
+def test_wrc_components_pinta_la_tabla(pagina):
+    """
+    EL TEST VA ANTES QUE EL CABLEADO, y hoy tiene que estar ROJO.
+
+    Son trece sitios entre main.py, la plantilla y app.js. Ocho de ellos en
+    app.js, dispersos. Esa es exactamente la forma que dejo las tres tablas de RE
+    Impact en blanco, una por ronda, sin un solo error en consola y con la API
+    devolviendo 200.
+    """
+    r = _generar_matriz(pagina, "WRC_COMPONENTS")
+
+    assert "error" not in r, f"wRC Components no se pinto: {r}"
+    assert r["filas"] > 0, "la tabla se pinto SIN FILAS"
+    assert r["celdasConValor"] > 0, f"filas sin un solo numero: {r['primera']!r}"
+
+
+def test_wrc_components_trae_las_constantes_que_hacen_falta(pagina):
+    """
+    Que pinte filas no basta: la tabla existe para que un investigador calcule
+    wRC, wRC+ y wRAA, y para eso necesita CUATRO constantes. Si falta una, la
+    tabla se ve perfecta y no sirve para nada.
+    """
+    r = _generar_matriz(pagina, "WRC_COMPONENTS")
+    assert "error" not in r, f"wRC Components no se pinto: {r}"
+
+    texto = r["cabeceras"].lower()
+    faltan = [q for q, patrones in {
+        "lgwOBA":            ("woba",),
+        "escala wOBA":       ("scale", "escala"),
+        "R/PA de liga":      ("r/pa", "runs"),
+        "sin lanzadores":    ("pitcher", "lanzador", "non-p", "wrc"),
+    }.items() if not any(p in texto for p in patrones)]
+
+    assert not faltan, f"la cabecera no ofrece {faltan}. Cabecera: {r['cabeceras']!r}"
+
+
+def test_wrc_components_no_ensena_el_codigo_interno(pagina):
+    r = _generar_matriz(pagina, "WRC_COMPONENTS")
+    assert "error" not in r, f"wRC Components no se pinto: {r}"
+
+    assert "WRC_COMPONENTS" not in r["cabeceras"], (
+        f"la cabecera enseña el codigo crudo: {r['cabeceras']!r}"
+    )
