@@ -79,7 +79,6 @@ SELECT
 
     -- Totales de liga, todos los bateadores.
     SUM(pa)                                 AS lg_pa,
-    SUM(den_woba)                           AS lg_woba_den,
     SUM(carreras)                           AS lg_runs,
     CAST(SUM(carreras) AS float) / NULLIF(SUM(pa), 0)  AS lg_r_per_pa,
 
@@ -97,13 +96,18 @@ SELECT
     CAST(SUM(CASE WHEN lanzador_bateando = 1 THEN pa ELSE 0 END) AS float)
         / NULLIF(SUM(pa), 0)                AS lg_share_pa_pitchers,
 
-    -- Sucesos del numerador de wOBA. Se publican en crudo, sin ponderar: los
-    -- coeficientes cambian por temporada y viven en wOBA_Coeffs.parquet. Aplicarlos
-    -- aqui obligaria a mantener los mismos numeros en dos sitios.
-    SUM(uBB) AS lg_ubb, SUM(iBB) AS lg_ibb, SUM(HBP) AS lg_hbp,
-    SUM(h1B) AS lg_1b,  SUM(h2B) AS lg_2b,  SUM(h3B) AS lg_3b, SUM(hHR) AS lg_hr,
-    SUM(SF)  AS lg_sf,  SUM(SH)  AS lg_sh,
-
+    -- Sucesos del numerador de wOBA, SOLO SIN LANZADORES. Se publican en crudo,
+    -- sin ponderar: los coeficientes cambian por temporada y viven en
+    -- wOBA_Coeffs.parquet, y aplicarlos aqui obligaria a mantener los mismos
+    -- numeros en dos sitios.
+    --
+    -- LOS DE LIGA ENTERA NO ESTAN, y es deliberado. Servirian para reconstruir el
+    -- lgwOBA, pero ese dato ya existe: es wOBA_Coeffs.League_Avg_OBP, verificado
+    -- identico al reconstruido en las 116 temporadas. Publicar aqui con que
+    -- recalcularlo seria ofrecer una segunda fuente para el mismo numero.
+    --
+    -- Los sin lanzadores SI hacen falta: no hay otro sitio de donde sacar el
+    -- lgwOBA excluyendolos, que es lo que fija el 100 del wRC+.
     SUM(CASE WHEN lanzador_bateando = 0 THEN uBB ELSE 0 END) AS lg_ubb_sin_p,
     SUM(CASE WHEN lanzador_bateando = 0 THEN HBP ELSE 0 END) AS lg_hbp_sin_p,
     SUM(CASE WHEN lanzador_bateando = 0 THEN h1B ELSE 0 END) AS lg_1b_sin_p,
