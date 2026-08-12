@@ -2756,3 +2756,47 @@ la descarga y el saltarse el selector de temporadas en `app.js` (~8 sitios).
 dejó las tres tablas de RE Impact en blanco, una por ronda. Antes de tocar nada,
 escribir el test de navegador que exige que la tabla pinte filas con números —el
 de `test_render_navegador.py` ya sirve de modelo— y comprobar que se pone rojo.
+
+#### El mapa del cableado, localizado (12 ago 2026)
+
+Los trece puntos, con el molde de `WOBA_COEFFS` al lado. **No están hechos.**
+
+**`app/main.py`** — 4 sitios
+| línea aprox. | qué |
+|---|---|
+| 260 | entrada en `data_store`: `"wrc_league_inputs": None` |
+| 478 | rama del cargador, con `validate_dataframe_schema` y los tipos |
+| 1016 | añadir `WRC_COMPONENTS` al patrón de `matrix_type` |
+| 1341 | el manejador, junto al de `WOBA_COEFFS`: **no usa rango de temporadas** |
+
+**`app/templates/index.html`** — 1 sitio
+| 370 | `<option value="WRC_COMPONENTS">wRC Components</option>` |
+
+Y el contenedor de tabla, replicando `woba-table-container`.
+
+**`app/static/js/app.js`** — 8 sitios. **Este es el tramo peligroso.**
+| línea aprox. | qué |
+|---|---|
+| 627 | ocultar los dos selectores de temporada, como wOBA y FIP |
+| 689 | texto de descripción |
+| 795 | `buttonId` de la descarga |
+| 882 | el `addEventListener` del botón |
+| 1411 | saltarse la validación de temporada |
+| 1446 | no añadir temporadas a la petición |
+| 1671 | `renderWRCTable(data)` + `enableDownloadButton(...)` |
+| 1747 | mostrar su contenedor y ocultar los demás |
+| 2794 | nombre del fichero de descarga sin temporada |
+
+Más `renderWRCTable`, calcado de `renderWOBATable`.
+
+#### El orden, que no es negociable
+
+1. **El test de navegador PRIMERO**, con `WRC_COMPONENTS` añadido a la lista de
+   `test_render_navegador.py`: que la tabla pinte filas con números, que el título
+   no enseñe el código crudo, y que el botón baje CSV y JSON de verdad.
+2. Comprobar que **se pone rojo**.
+3. Cablear.
+4. Verificar en el navegador contra el código fuente, no contra la imagen.
+
+Ocho sitios dispersos en un fichero es exactamente la forma que dejó las tres
+tablas de RE Impact en blanco, una por ronda. La red va antes que el cambio.
