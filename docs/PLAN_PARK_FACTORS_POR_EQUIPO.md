@@ -30,7 +30,20 @@ La regla que lo gobierna: **`retroParkFactors` y `parkFactors.parquet` no se
 tocan.** Ni una columna. Si al terminar el plan esos dos objetos son distintos de
 como están hoy, el plan se hizo mal.
 
-### Paso 1 — Tabla nueva, nombre nuevo
+### Paso 1 — Tabla nueva, nombre nuevo — HECHO (12 ago 2026)
+
+`dbo.retroParkFactorsByTeam` creada y **vacía**; se llena en el paso 2. El DDL
+está en `retrosheet/gen_files/park_factors/retroParkFactorsByTeam_ddl.sql`, junto
+al script R —fuera de este repositorio, como el resto de DDL de tablas base—.
+
+Comprobado justo después de crearla: `retroParkFactors` sigue con 7.524 filas y
+sus diez columnas, la consulta del pipeline devuelve lo mismo sin un duplicado, y
+los 6 tests del paso 4 siguen verdes.
+
+La clave es `(PARK_ID, SEASON, HOME_TEAM_ID, SEASONS_AVG)` —el equipo dentro, que
+es lo que permite las dos filas de un estadio compartido— y un `CHECK` exige
+`SEASONS_EFF <= SEASONS_AVG`.
+
 
 `dbo.retroParkFactorsByTeam`, con `HOME_TEAM_ID`, `SEASONS_EFF`, `WINDOW_FROM`,
 `WINDOW_TO` y `G`. La vieja se queda intacta y sigue alimentando la tabla que ve
