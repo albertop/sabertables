@@ -629,6 +629,24 @@ SELECT [PARK_ID]
 ORDER BY PARK_ID, SEASON, HOME_TEAM_ID, SEASONS_AVG;
 """
 
+# Insumos de LIGA para wRAA, wRC y wRC+ (ver 23_v_wrc_league_inputs.sql).
+#
+#     wRAA = ((wOBA - lgwOBA) / escala) * PA
+#     wRC  = (((wOBA - lgwOBA) / escala) + lg_r_per_pa) * PA
+#
+# La escala y los coeficientes NO estan aqui: viven en wOBA_Coeffs.parquet y no se
+# duplican. Los sucesos van en crudo para que los pesos se apliquen en un solo
+# sitio.
+#
+# Las columnas "_sin_p" son el denominador del 100 del wRC+, que se fija con la
+# liga SIN lanzadores bateando. Medido: excluirlos mueve el lgwOBA +0,0074 de media
+# historica y hasta +0,011 en los setenta; desde el bateador designado universal de
+# 2022 cae a +0,00001, porque los lanzadores pasaron del 8,9% de las apariciones al
+# 0,02%.
+QUERY_WRC_LEAGUE_INPUTS = """
+SELECT * FROM [dbo].[v_wrc_league_inputs] ORDER BY season;
+"""
+
 QUERY_LINEAR_WEIGHTS = """
 select * from
 (
@@ -1225,6 +1243,14 @@ DATASETS = [
             "PF_SO": "float32",
         },
         season_col="SEASON",
+    ),
+    Dataset(
+        key="wrc_league_inputs",
+        title="wRC League Inputs",
+        query=QUERY_WRC_LEAGUE_INPUTS,
+        output="wrc_league_inputs.parquet",
+        dtypes={"season": "int32"},
+        season_col="season",
     ),
     Dataset(
         key="linear_weights",
