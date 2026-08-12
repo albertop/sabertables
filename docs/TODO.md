@@ -2708,3 +2708,51 @@ compartido, y siguen guardando a los demás. Verificado por mutación —al quit
 publicado: la opción `gidp` está en el desplegable y el `app.js` servido lleva
 `ESCENARIOS_POR_ESTADO_DE_BASES`, el despacho compartido que evita volver a
 parchear seis cadenas por cada tipo nuevo.
+
+### 8.8 wRC Components — una opción para el researcher (12 ago 2026)
+
+**Qué es, en una frase:** una tabla de referencia más, junto a wOBA Coefficients y
+FIP Components, con **todo lo que un investigador necesita para calcular wRC,
+wRC+ y wRAA por su cuenta**.
+
+**Sabertables no publica jugadores.** Nunca lo ha hecho: todas sus tablas son
+agregados de liga con los que el usuario calcula lo suyo. Esto es lo mismo. No hay
+ranking de bateadores, ni umbral de apariciones, ni paginación — nada de eso
+aplica.
+
+#### Las fórmulas que la tabla tiene que dejar aplicables
+
+    wRAA = ((wOBA − lgwOBA) / escala) × PA
+    wRC  = (((wOBA − lgwOBA) / escala) + lgR/PA) × PA
+    wRC+ = ((wRAA/PA + lgR/PA) + (lgR/PA − PF × lgR/PA)) / lgwRC/PA_sin_lanzadores × 100
+
+#### Las columnas, una fila por temporada
+
+| columna | 2025 | de dónde |
+|---|---|---|
+| lgwOBA | 0,31515 | `wOBA_Coeffs.League_Avg_OBP`, verificado idéntico al reconstruido en las 116 temporadas |
+| escala wOBA | 1,19450 | `wOBA_Coeffs.WOBA_Scale` |
+| lgR/PA | 0,11637 | `wrc_league_inputs.lg_r_per_pa` |
+| lgwRC/PA sin lanzadores | 0,11641 | derivado de las columnas `_sin_p` |
+| PA y carreras de liga | 182.838 / 21.276 | para que el cálculo sea auditable |
+| % de PA de lanzadores | 0,025% | dice si la columna «sin lanzadores» aporta algo esa temporada |
+
+El factor de parque **no va aquí**: ya se publica en Park Factors, y es por parque,
+no por liga. La tabla debe decirlo, para que nadie lo busque en el sitio
+equivocado.
+
+#### Estado
+
+**Los datos están hechos y validados**: `wrc_league_inputs.parquet`, 116
+temporadas, desde `23_v_wrc_league_inputs.sql`. Solo temporada regular. El
+`lgwOBA` reconstruido coincide con el guardado en las 116, y la prueba de humo da
+wRC+ **100,0 clavado** para el bateador de liga.
+
+**Falta el cableado**, con el molde de `WOBA_COEFFS`: patrón de `matrix_type` y la
+rama de carga en `app/main.py` (4 sitios), la opción en `index.html`, y el render,
+la descarga y el saltarse el selector de temporadas en `app.js` (~8 sitios).
+
+**Ese último punto es el riesgoso.** Ocho sitios dispersos es la misma forma que
+dejó las tres tablas de RE Impact en blanco, una por ronda. Antes de tocar nada,
+escribir el test de navegador que exige que la tabla pinte filas con números —el
+de `test_render_navegador.py` ya sirve de modelo— y comprobar que se pone rojo.
