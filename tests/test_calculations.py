@@ -2195,3 +2195,108 @@ def test_gidp_sin_brazo_de_comparacion_no_inventa_la_fila():
     df = pd.DataFrame([_fila_gidp(n=10)])
 
     assert calculate_gidp_impact(df, _re_lookup_gidp()) == []
+
+
+# ---------------------------------------------------------------------------
+# Missed Calls: LA COSTURA entre RE288 y RE24 (8.9)
+# ---------------------------------------------------------------------------
+
+_RE288_MC = {(2025, 0, "100", "1-1"): 0.90, (2025, 0, "100", "0-2"): 0.70,
+             (2025, 0, "100", "1-2"): 0.75, (2025, 0, "100", "2-1"): 1.05,
+             (2025, 2, "111", "3-2"): 0.80}
+_RE24_MC = {(2025, 0, "100"): 0.89, (2025, 1, "100"): 0.52,
+            (2025, 2, "111"): 0.75, (2025, 0, "110"): 1.44}
+
+
+def _fila_mc(**kw):
+    base = dict(season=2025, runners="100", outs=0, balls=0, strikes=1,
+                canto_real="B", canto_reglamento="S", n=10)
+    base.update(kw)
+    base["count"] = f"{base['balls']}-{base['strikes']}"
+    return base
+
+
+def test_missed_calls_un_canto_normal_se_valora_con_RE288():
+    """0-1, strike cantado bola: la continuacion buena es 0-2 y la real 1-1."""
+    from utils.create_break_even_points import calculate_missed_calls_impact
+
+    df = pd.DataFrame([_fila_mc()])
+    filas = calculate_missed_calls_impact(df, _RE288_MC, _RE24_MC)
+
+    assert len(filas) == 1
+    assert filas[0]["delta_re"] == pytest.approx(0.90 - 0.70)
+    assert filas[0]["tipo"] == "strike_called_ball"
+
+
+def test_missed_calls_el_TERCER_STRIKE_se_valora_con_RE24_no_con_RE288():
+    """
+    LA COSTURA. Con dos strikes, el canto correcto acaba el turno: no hay conteo
+    '0-3'. Si esto se buscara en RE288 devolveria None y la casilla desapareceria
+    EN SILENCIO -- el total saldria plausible y bajo, que es exactamente como la
+    primera version dio 892 fallos en vez de 30.839.
+    """
+    from utils.create_break_even_points import calculate_missed_calls_impact
+
+    # 0-2, el reglamento dice strike (ponche) y se canta bola (pasa a 1-2).
+    df = pd.DataFrame([_fila_mc(strikes=2, canto_real="B", canto_reglamento="S")])
+    filas = calculate_missed_calls_impact(df, _RE288_MC, _RE24_MC)
+
+    assert len(filas) == 1, "la fila se perdio: se busco el conteo '0-3' en RE288"
+    # real = RE288(1-2) = 0.75 ; correcto = ponche = RE24(outs+1) = 0.52
+    assert filas[0]["delta_re"] == pytest.approx(0.75 - 0.52)
+
+
+def test_missed_calls_la_CUARTA_BOLA_avanza_a_los_forzados():
+    """
+    El otro extremo de la costura: con tres bolas, el canto correcto es base por
+    bolas. El bateador va a primera y avanzan SOLO los forzados: de '100' a '110'.
+    """
+    from utils.create_break_even_points import calculate_missed_calls_impact
+
+    # 3-1, el reglamento dice bola (BB) y se canta strike (pasa a 3-2).
+    df = pd.DataFrame([_fila_mc(balls=3, strikes=1, canto_real="S",
+                                canto_reglamento="B", runners="100", outs=0)])
+    _RE288_MC[(2025, 0, "100", "3-2")] = 1.20
+    filas = calculate_missed_calls_impact(df, _RE288_MC, _RE24_MC)
+
+    assert len(filas) == 1, "la fila se perdio: se busco el conteo '4-1' en RE288"
+    # real = RE288(3-2) = 1.20 ; correcto = BB = RE24(0 outs, '110') = 1.44
+    assert filas[0]["delta_re"] == pytest.approx(1.20 - 1.44)
+    assert filas[0]["tipo"] == "ball_called_strike"
+
+
+def test_missed_calls_el_ponche_con_dos_outs_cierra_la_entrada_y_vale_cero():
+    """Con dos outs el tercer strike acaba la entrada: no hay RE24 de tres outs."""
+    from utils.create_break_even_points import calculate_missed_calls_impact
+
+    df = pd.DataFrame([_fila_mc(runners="111", outs=2, balls=3, strikes=2,
+                                canto_real="B", canto_reglamento="S")])
+    filas = calculate_missed_calls_impact(df, _RE288_MC, _RE24_MC)
+
+    assert len(filas) == 1
+    # real = BB con bases llenas = RE24(2 outs, '111') = 0.75 ; correcto = 0
+    assert filas[0]["delta_re"] == pytest.approx(0.75 - 0.0)
+
+
+def test_missed_calls_no_pierde_filas_en_silencio(caplog):
+    """
+    Si una casilla no esta, tiene que AVISAR. Descartarla callando es el modo de
+    fallo que produjo 892 en vez de 30.839.
+    """
+    from utils.create_break_even_points import calculate_missed_calls_impact
+
+    df = pd.DataFrame([_fila_mc(runners="011", n=777)])   # no esta en los lookups
+    with caplog.at_level("WARNING"):
+        filas = calculate_missed_calls_impact(df, _RE288_MC, _RE24_MC)
+
+    assert filas == []
+    assert "777" in caplog.text, "descarto la fila sin avisar"
+
+
+def test_missed_calls_ignora_los_cantos_CORRECTOS():
+    """Solo hay algo que medir cuando los dos cantos difieren."""
+    from utils.create_break_even_points import calculate_missed_calls_impact
+
+    df = pd.DataFrame([_fila_mc(canto_real="S", canto_reglamento="S")])
+
+    assert calculate_missed_calls_impact(df, _RE288_MC, _RE24_MC) == []

@@ -309,6 +309,12 @@ SELECT [season], [outs], [runners], [direction], [bucket], [n], [mean_rv], [sd_r
 FROM [dbo].[v_re_analysis_tag_up]
 """
 
+QUERY_MISSED_CALLS = """
+SELECT [season], [runners], [outs], [count], [balls], [strikes],
+       [canto_real], [canto_reglamento], [n]
+FROM [dbo].[v_re_analysis_missed_calls]
+"""
+
 QUERY_GIDP = """
 SELECT [season], [outs], [runners], [es_dp], [tipo_batazo], [runners_fin],
        [outs_fin], [carreras], [n]
@@ -1276,6 +1282,127 @@ def calculate_gidp_impact(gidp_df: pd.DataFrame, re_lookup: dict) -> list:
             "n":        n_dp,
         })
     return rows
+
+
+# El estado de bases tras una base por bolas. El bateador va a primera y los
+# corredores avanzan SOLO si estan forzados.
+AVANCE_POR_BASE_POR_BOLAS = {
+    "000": "100", "100": "110", "010": "110", "001": "101",
+    "110": "111", "101": "111", "011": "111", "111": "111",
+}
+
+
+def _valor_tras_el_canto(runners, outs, balls, strikes, canto,
+                         re288_lookup, re24_lookup, season):
+    """
+    Cuanto vale la situacion despues de cantar `canto` ('S' o 'B').
+
+    AQUI ESTA LA COSTURA ENTRE DOS MATRICES, y es la parte fragil de todo esto.
+
+    Un canto que NO termina el turno deja otro conteo, y eso lo valora RE288. Pero
+    el tercer strike y la cuarta bola no dejan conteo ninguno: acaban la aparicion.
+    El ponche va a RE24(runners, outs+1) y la base por bolas a RE24(avance, outs).
+    Con dos outs, el ponche cierra la entrada y vale 0.
+
+    Si esto se hiciera todo con RE288, los cantos terminales buscarian un conteo
+    '0-3' o '4-0' que no existe, y devolverian None: las casillas desapareceria
+    en silencio y el total saldria plausible y bajo.
+    """
+    runners = str(runners).zfill(3)
+    outs = int(outs)
+    if canto == "S":
+        if strikes >= 2:                                   # ponche
+            return 0.0 if outs + 1 >= 3 else re24_lookup.get((season, outs + 1, runners))
+        return re288_lookup.get((season, outs, runners, f"{balls}-{strikes + 1}"))
+    if balls >= 3:                                         # base por bolas
+        return re24_lookup.get((season, outs, AVANCE_POR_BASE_POR_BOLAS[runners]))
+    return re288_lookup.get((season, outs, runners, f"{balls + 1}-{strikes}"))
+
+
+def calculate_missed_calls_impact(df: pd.DataFrame, re288_lookup: dict,
+                                  re24_lookup: dict) -> list:
+    """
+    Impacto en carreras de los cantos equivocados (8.9).
+
+        impacto = valor(canto real) - valor(canto de reglamento)
+
+    Positivo favorece al bateador. Solo entran las filas donde los dos cantos
+    difieren; las demas son cantos correctos y no tienen nada que medir.
+
+    NINGUNA FILA SE DESCARTA EN SILENCIO. Si una casilla no se encuentra se
+    acumula y se avisa: es exactamente asi como la primera version devolvio 892
+    fallos en vez de 30.839 sin que nada se quejara.
+    """
+    if not len(df):
+        return []
+
+    # `count` choca con el metodo count() de las tuplas que devuelve itertuples, y
+    # pandas lo renombra a un posicional. Se renombra aqui para no depender de eso.
+    df = df.rename(columns={"count": "conteo"})
+
+    agregado, sin_casilla = {}, 0
+    for r in df.itertuples():
+        if r.canto_real == r.canto_reglamento:
+            continue
+        season, runners, outs = int(r.season), str(r.runners).zfill(3), int(r.outs)
+        v_real = _valor_tras_el_canto(runners, outs, r.balls, r.strikes,
+                                      r.canto_real, re288_lookup, re24_lookup, season)
+        v_ok = _valor_tras_el_canto(runners, outs, r.balls, r.strikes,
+                                    r.canto_reglamento, re288_lookup, re24_lookup, season)
+        if v_real is None or v_ok is None:
+            sin_casilla += int(r.n)
+            continue
+        # 'S' de reglamento cantado bola = strike perdido; 'B' cantado strike = bola regalada.
+        tipo = "strike_called_ball" if r.canto_reglamento == "S" else "ball_called_strike"
+        # El denominador del porcentaje: la RE288 de la situacion ANTES del
+        # lanzamiento. Es el mismo criterio que el resto del sitio --delta sobre
+        # lo que ya valia-- y sin el, el interruptor de Percentages no tiene con
+        # que dividir y parece muerto.
+        base = re288_lookup.get((season, outs, runners, str(r.conteo)))
+        clave = (season, runners, outs, str(r.conteo), tipo)
+        acc = agregado.setdefault(clave, {"n": 0, "impacto": 0.0, "base": 0.0})
+        acc["n"] += int(r.n)
+        acc["impacto"] += (v_real - v_ok) * int(r.n)
+        acc["base"] += (base if base is not None else 0.0) * int(r.n)
+
+    if sin_casilla:
+        log.warning(f"  !! {sin_casilla:,} lanzamientos sin casilla en RE288/RE24")
+
+    return [
+        {"season": season, "runners": runners, "outs": outs, "count": conteo,
+         "tipo": tipo, "n": v["n"], "delta_re": v["impacto"] / v["n"],
+         "baseline_re": v["base"] / v["n"]}
+        for (season, runners, outs, conteo, tipo), v in sorted(agregado.items())
+    ]
+
+
+def load_missed_calls_rows_from_db(re288_lookup: dict, re24_lookup: dict) -> list:
+    """Lee la rejilla de cantos equivocados y la convierte en filas de carreras."""
+    log.info("")
+    log.info("Extracting missed calls rows from SQL view...")
+    engine = connect_to_database()
+    df = _read_sql_view(engine, QUERY_MISSED_CALLS, "dbo.v_re_analysis_missed_calls")
+    filas = calculate_missed_calls_impact(df, re288_lookup, re24_lookup)
+    log.info(f"  Normalized missed calls rows: {len(filas):,}")
+    return filas
+
+
+def save_missed_calls(rows: list, data_dir: Path) -> pd.DataFrame:
+    """
+    Parquet PROPIO, no dentro de re_impact.parquet.
+
+    Ahi caben 6 filas por temporada --sac_bunt-- y esto trae 576. Y una dimension
+    que ese esquema no tiene, el conteo. Es la leccion de los factores de parque:
+    la informacion nueva no entra deformando la que ya funciona.
+    """
+    df = pd.DataFrame(rows, columns=["season", "runners", "outs", "count",
+                                     "tipo", "n", "delta_re", "baseline_re"])
+    df = df.astype({"season": "int32", "outs": "int8", "n": "int32",
+                    "delta_re": "float32", "baseline_re": "float32"})
+    salida = data_dir / "missed_calls.parquet"
+    df.to_parquet(salida, index=False)
+    log.info(f"  Saved {len(df):,} rows to {salida.name}")
+    return df
 
 
 def load_gidp_rows_from_db(re_lookup: dict) -> list:
@@ -2873,6 +3000,11 @@ def main(data_dir=None):
         re288.set_index(["season", "outs", "runners", "count"])["n"]
         .to_dict()
     )
+
+    # Cantos equivocados (8.9). Parquet PROPIO: trae una dimension mas --el
+    # conteo-- y 576 filas por temporada, contra las 6 de sac_bunt.
+    missed_calls_rows = load_missed_calls_rows_from_db(re288_lookup, re_lookup)
+    save_missed_calls(missed_calls_rows, data_dir)
     seasons_288 = sorted(re288["season"].unique())
 
     sb_by_count_rows = calculate_sb_breakeven_by_count(re288_lookup, n288_lookup, seasons_288)

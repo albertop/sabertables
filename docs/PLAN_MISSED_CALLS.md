@@ -139,3 +139,45 @@ eso, la tabla se lee como una acusación al árbitro en vez de como lo que es.
   motivo de cambiar de enfoque.
 - No mezclarlo con el suelo de 1910 del resto del sitio: aquí es **2008**.
 - No callar los lanzamientos sin coordenadas: 12.308 en 2008.
+
+## PASO 4 MAL HECHO — hay que rehacerlo reusando RE288 (13 ago 2026)
+
+**Escribí un renderizador nuevo, `renderMissedCallsTable`, en vez de pasar por el
+de RE288. Fue un error de diseño y hay que deshacerlo.**
+
+Missed Calls **es** una rejilla RE288: 24 filas, 12 columnas de conteo, rombo con
+`rowspan="3"`, borde cada tercera fila, columnas fijas. Idéntica. Al escribir uno
+aparte, no heredó nada y hubo que reimplementar a mano —mal y de una en una— cosas
+que ya funcionaban.
+
+Lo que falta, y **todo estaba ya resuelto en RE288**:
+
+| pieza | estado |
+|---|---|
+| Paginación | no existe |
+| Descarga CSV | no baja nada |
+| Descarga JSON | baja con **0 filas** |
+| Suelo de temporadas | empieza en 1910; Statcast arranca en **2008** |
+| Heatmap | enganchado a mano |
+| Porcentajes | enganchado a mano |
+
+### Lo que hay que hacer
+
+**Borrar `renderMissedCallsTable`** y hacer que Missed Calls entre por el camino
+de RE288, entregándole `rows` y `count_columns` en el formato que ese renderizador
+ya espera. Con eso hereda las seis piezas de golpe.
+
+El sitio donde adaptar es el endpoint: que devuelva la forma de RE288 —una fila
+por `(runners, outs)` con una columna por conteo— en vez de la lista larga que
+devuelve hoy.
+
+### La regla, que es lo que hay que aprender de esto
+
+**Antes de escribir un renderizador nuevo, comprobar si la tabla tiene la forma de
+uno que ya existe.** Es el tercer aviso de lo mismo en dos días: el `span` del
+heatmap existiendo `renderHeatmapBadge`, el orden de columnas inventado existiendo
+`sort_order_count`, y ahora una tabla entera.
+
+Los tests de `test_render_navegador.py` —`TODA_la_superficie_de_control_responde` y
+`baja_un_fichero_CON_CONTENIDO`— señalan cada pieza y están en rojo. No se tocan:
+son la definición de terminado.

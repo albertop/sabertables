@@ -1242,6 +1242,16 @@ function setupEventListeners() {
             }
         });
     }
+
+    // Missed Calls no pasa por renderReImpactPage: tiene su propio camino.
+    const missedCallsTipo = document.getElementById('missed-calls-tipo-select');
+    if (missedCallsTipo) {
+        missedCallsTipo.addEventListener('change', () => {
+            if (currentTableData.re_impact?.analysis_type === 'missed_calls') {
+                renderMissedCallsTable(currentTableData.re_impact);
+            }
+        });
+    }
 }
 
 function showError(message) {
@@ -7151,7 +7161,137 @@ function renderSacBuntRePage() {
     }
 }
 
+// Los 12 conteos EN EL ORDEN DE RE288, que no es el alfabetico: va del conteo mas
+// favorable al lanzador al mas favorable al bateador. Es `sort_order_count` en
+// re288_values, y ordenar por texto rompe la lectura de la tabla --el gradiente
+// deja de significar nada--.
+const MISSED_CALLS_CONTEOS = ['0-2', '1-2', '0-1', '2-2', '1-1', '0-0',
+                              '1-0', '2-1', '3-2', '2-0', '3-1', '3-0'];
+const MISSED_CALLS_BASES = ['000', '100', '010', '001', '110', '101', '011', '111'];
+const MISSED_CALLS_ETIQUETAS = {
+    '000': 'Bases empty', '100': 'Runner on 1B', '010': 'Runner on 2B',
+    '001': 'Runner on 3B', '110': 'Runners on 1B & 2B', '101': 'Runners on 1B & 3B',
+    '011': 'Runners on 2B & 3B', '111': 'Bases loaded'
+};
+
+// Rejilla de 24 x 12, con la forma de RE288.
+//
+// SE DESPACHA ANTES DEL PIVOTE, y por eso no toca ninguna de las seis cadenas de
+// renderReImpactPage: sus datos vienen de missed_calls.parquet, con una dimension
+// mas --el conteo-- y otra forma. Meterlo por el camino comun obligaria a parchear
+// seis sitios para una tabla que no se parece a las otras.
+// Las dos clases de fallo. NO se suman en la misma casilla: valen ~+0,2 y ~-0,2
+// carreras y se cancelan --donde el coste real es 0,215 salia 0,056--. La tabla
+// ensena una a la vez y el control de arriba elige cual.
+const MISSED_CALLS_CLASES = {
+    strike_called_ball: 'Strikes called balls',
+    ball_called_strike: 'Balls called strikes',
+    // El neto: las dos clases sumadas. Se ofrece pero NO es la vista por defecto,
+    // porque tienen signo opuesto y se cancelan casi enteras --donde el coste de
+    // un fallo es 0,215 el neto vale 0,056--. Dice cuanto se DESVIA la zona
+    // cantada del reglamento, que es otra pregunta y tambien interesante.
+    net: 'Net value'
+};
+
+function claseDeFalloElegida() {
+    return document.getElementById('missed-calls-tipo-select')?.value || 'strike_called_ball';
+}
+
+function renderMissedCallsTable(data) {
+    currentTableData.re_impact = data;
+    document.body.classList.add('missed-calls-grid');
+    const selector = document.getElementById('missed-calls-tipo');
+    if (selector) selector.classList.remove('d-none');
+    const head = document.getElementById('re-impact-table-head');
+    const body = document.getElementById('re-impact-table-body');
+    const titulo = document.getElementById('re-impact-table-title');
+    const sub = document.getElementById('re-impact-table-subtitle');
+    if (!head || !body) { console.error('RE Impact table elements not found'); return; }
+
+    const clase = claseDeFalloElegida();
+    const temporadas = data.from_season === data.to_season
+        ? `${data.from_season} Season` : `${data.from_season}-${data.to_season} Seasons`;
+    if (titulo) {
+        titulo.innerHTML = 'RE Impact Analysis - '
+            + `<span class="primary-badge">${MISSED_CALLS_CLASES[clase]}</span> - `
+            + `<span class="primary-badge">${temporadas}</span>`;
+    }
+    // Al estilo de los demas: una pregunta corta. Lo de la zona de reglamento es
+    // una salvedad necesaria, pero cabe en una linea: el parrafo anterior era un
+    // subtitulo de cinco lineas que nadie iba a leer.
+    if (sub) sub.textContent = 'What does a wrong call cost in runs — a strike '
+        + 'called a ball, or a ball called a strike?';
+
+    // Mismas clases que RE288: fs-5 fw-bold y el fondo por variable, no bg-primary.
+    head.innerHTML = '<tr>'
+        + '<th class="text-center fs-5 fw-bold" colspan="2" style="background-color: var(--primary)">Runners</th>'
+        + '<th class="text-center fs-5 fw-bold" style="background-color: var(--primary)">Outs</th>'
+        + MISSED_CALLS_CONTEOS.map(c => {
+            // Igual que RE288: el 0-0 se ensena como "First Pitch", no como '0-0'.
+            const etiqueta = (c === '0-0') ? 'First<br>Pitch' : c;
+            return `<th class="text-center fs-5 fw-bold" style="background-color: var(--primary)">${etiqueta}</th>`;
+          }).join('')
+        + '</tr>';
+
+    // Una casilla es la suma de LOS DOS brazos, ponderada por lanzamientos. Los
+    // dos son fallos y los dos mueven carreras; enseñar solo uno diria la mitad.
+    const porCasilla = {};
+    (data.display_data || [])
+        .filter(f => clase === 'net' || f.tipo === clase)
+        .forEach(f => {
+        const k = `${f.runners}|${f.outs}|${f.count}`;
+        const a = porCasilla[k] || (porCasilla[k] = {w: 0, n: 0});
+        a.w += f.delta_re * f.n;
+        a.n += f.n;
+    });
+
+    const valores = Object.values(porCasilla).map(a => a.w / a.n).filter(Number.isFinite);
+    const min = Math.min(...valores), max = Math.max(...valores);
+    const heatmap = document.getElementById('re-impact-heatmap-toggle')?.checked !== false;
+
+    let html = '';
+    MISSED_CALLS_BASES.forEach(runners => {
+        [0, 1, 2].forEach((outs, i) => {
+            html += `<tr${outs === 2 ? ' style="border-bottom: 2px solid #495057;"' : ''}>`;
+            if (i === 0) {
+                html += `<td class="text-end sticky-col align-middle svg-cell" rowspan="3">`
+                      + `${getBaseStateSVGMarkup(runners)}</td>`;
+                html += `<td class="text-start fs-6 sticky-col align-middle label-cell label-cell-sticky" `
+                      + `rowspan="3">${MISSED_CALLS_ETIQUETAS[runners]}</td>`;
+            }
+            html += `<td class="text-center fs-5">${outs}</td>`;
+            MISSED_CALLS_CONTEOS.forEach(c => {
+                const a = porCasilla[`${runners}|${outs}|${c}`];
+                if (!a || !a.n) { html += '<td class="text-center fs-5">-</td>'; return; }
+                const v = a.w / a.n;
+                const celda = heatmap
+                    ? renderHeatmapBadge(v.toFixed(3), v, min, max)
+                    : v.toFixed(3);
+                html += `<td class="text-center fs-5">${celda}</td>`;
+            });
+            html += '</tr>';
+        });
+    });
+    body.innerHTML = html;
+
+    const conteo = document.getElementById('re-impact-event-count');
+    const total = (data.display_data || [])
+        .filter(f => clase === 'net' || f.tipo === clase)
+        .reduce((a, f) => a + f.n, 0);
+    if (conteo) setBreakevenFooterText(
+        conteo, `${total.toLocaleString()} ${MISSED_CALLS_CLASES[clase].toLowerCase()}`);
+}
+
 function renderReImpactTable(data) {
+    if (data.analysis_type === 'missed_calls') {
+        renderMissedCallsTable(data);
+        return;
+    }
+    // Fuera la marca de tamano y el control: la tabla es compartida y si se
+    // quedan, el siguiente analisis hereda la letra pequena y un selector que no
+    // le corresponde.
+    document.body.classList.remove('missed-calls-grid');
+    document.getElementById('missed-calls-tipo')?.classList.add('d-none');
     // Store data in current table data for downloads and season changes
     const reImpactPercentToggle = document.getElementById('re-impact-percent-toggle');
     if (reImpactPercentToggle) {

@@ -387,6 +387,7 @@
                                     <option value="running_runs">Base Running</option>
                                     <option value="tagging_runs">Tag-up</option>
                                     <option value="gidp">Double Play</option>
+                                    <option value="missed_calls">Missed Calls</option>
                                     <option value="sac_bunt">Sacrifice Bunt</option>
                                     <option value="ibb">Intentional Walk</option>
                                     <option value="ph_position">PH for Position Player</option>
@@ -1001,6 +1002,13 @@
                 </h3>
                 <div class="d-flex align-items-center gap-3">
                     <div class="d-flex align-items-center gap-2">
+                        <div id="missed-calls-tipo" class="d-none me-3">
+                            <select class="form-select form-select-sm form-select-custom" id="missed-calls-tipo-select">
+                                <option value="strike_called_ball">Strikes called balls</option>
+                                <option value="ball_called_strike">Balls called strikes</option>
+                                <option value="net">Net value</option>
+                            </select>
+                        </div>
                         <span class="text-white fw-medium">Percentages</span>
                         <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" role="switch" id="re-impact-percent-toggle" style="cursor: pointer;">

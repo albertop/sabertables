@@ -259,6 +259,7 @@ data_store: dict[str, Any] = {
     "last_updated": None,  # Loaded at startup
     "woba_coeffs": None,  # Loaded on-demand
     "wrc_league_inputs": None,  # Loaded on-demand
+    "missed_calls": None,  # Loaded on-demand
     "fip": None,  # Loaded on-demand
     "ballparks": None,  # Loaded on-demand
     "park_factors": None,  # Loaded on-demand
@@ -483,6 +484,13 @@ def _load_dataset(dataset_name: str) -> None:
             for col in ["League_Avg_OBP", "WOBA_Scale", "wuBB", "wHBP", "w1B", "w2B", "w3B", "wHR"]:
                 df[col] = df[col].astype('float64')
             data_store["woba_coeffs"] = df
+
+        elif dataset_name == "missed_calls":
+            df = pd.read_parquet(DATA_DIR / "missed_calls.parquet")
+            validate_dataframe_schema(df, "Missed Calls",
+                ["season", "runners", "outs", "count", "tipo", "n", "delta_re"])
+            data_store["missed_calls"] = df
+            logger.info(f"Loaded Missed Calls: {len(df):,} rows")
 
         elif dataset_name == "wrc_league_inputs":
             df = pd.read_parquet(DATA_DIR / "wrc_league_inputs.parquet")
@@ -1041,7 +1049,7 @@ class TableRequest(BaseModel):
         pattern="^(stealing|running|tagging|bunt-for-hit|swing-take|swing-take-zone|sb_by_count)$",
         description="Break-even family for BREAKEVEN_POINTS; sin el se mandan todas",
     )
-    analysis_type: str | None = Field(None, pattern="^(sac_bunt|ibb|ph_position|ph_pitcher|platoon_baseline|tto|steal_runs|running_runs|tagging_runs|gidp)$", description="Analysis type for RE_IMPACT. Los tres *_runs expresan en carreras lo que Break-Even Points da como porcentaje (seccion 10 de docs/TODO.md)")
+    analysis_type: str | None = Field(None, pattern="^(sac_bunt|ibb|ph_position|ph_pitcher|platoon_baseline|tto|steal_runs|running_runs|tagging_runs|gidp|missed_calls)$", description="Analysis type for RE_IMPACT. Los tres *_runs expresan en carreras lo que Break-Even Points da como porcentaje (seccion 10 de docs/TODO.md)")
 
 
     # Aqui habia un validador que comprobaba que la temporada cabe en un int32.
@@ -1483,6 +1491,36 @@ async def generate_table(request: Request, table_request: TableRequest):
                 )
 
             logger.info(f"Generating RE Impact table - Analysis: {table_request.analysis_type}")
+
+            # MISSED CALLS SALE DE SU PROPIO PARQUET y se devuelve entero: trae una
+            # dimension mas --el conteo-- y 576 filas por temporada, contra las 6 de
+            # sac_bunt. Se despacha AQUI, antes del pivote, para no pasar por las
+            # seis cadenas de re_impact que no le sirven de nada. Ver 8.9.
+            if table_request.analysis_type == "missed_calls":
+                ensure_data_loaded("missed_calls")
+                mc = data_store["missed_calls"]
+                desde = table_request.from_season or int(mc["season"].min())
+                hasta = table_request.to_season or int(mc["season"].max())
+                mc = mc[(mc["season"] >= desde) & (mc["season"] <= hasta)]
+                if not len(mc):
+                    raise HTTPException(status_code=404,
+                                        detail=f"No missed calls data for {desde}-{hasta}")
+                # Media ponderada por lanzamientos, que es como se agrega todo aqui.
+                mc = mc.assign(_w=mc["delta_re"] * mc["n"],
+                               _b=mc["baseline_re"] * mc["n"])
+                g = (mc.groupby(["runners", "outs", "count", "tipo"], as_index=False)
+                       .agg(w=("_w", "sum"), b=("_b", "sum"), n=("n", "sum")))
+                g["delta_re"] = g["w"] / g["n"]
+                g["baseline_re"] = g["b"] / g["n"]
+                g = g.drop(columns=["b"])
+                return ORJSONResponse(content={
+                    "matrix_type": "RE_IMPACT",
+                    "analysis_type": "missed_calls",
+                    "from_season": desde,
+                    "to_season": hasta,
+                    "display_data": g.drop(columns=["w"]).to_dict(orient="records"),
+                })
+
             ensure_data_loaded("re_impact")
             df = data_store["re_impact"].copy()
 

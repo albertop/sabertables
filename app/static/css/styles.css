@@ -346,6 +346,20 @@ main {
     font-size: 1rem !important;
 }
 
+/* Missed Calls: MISMO tamano que RE288.
+   Es una rejilla de 24 x 12 igual que aquella, y el tamano por defecto de la
+   tabla de RE Impact --pensada para 6 filas-- la desborda. Va por id, como la de
+   RE288, porque la tabla es compartida con los demas analisis y una clase
+   afectaria a todos. */
+body.missed-calls-grid #re-impact-table-body,
+body.missed-calls-grid #re-impact-table-body td {
+    font-size: 0.95rem !important;
+}
+
+body.missed-calls-grid #re-impact-table-head th {
+    font-size: 1rem !important;
+}
+
 /* Buy Me a Coffee - scale utility */
 .bmc-scale-90 {
     transform: scale(0.9);

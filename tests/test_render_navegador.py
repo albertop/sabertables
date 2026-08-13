@@ -980,3 +980,181 @@ def test_missed_calls_pinta_la_rejilla_de_24_por_12(pagina):
     assert r["celdas"] >= 12, (
         f"solo {r['celdas']} celdas en una fila del medio: faltan conteos"
     )
+
+
+def test_missed_calls_ensena_el_coste_REAL_y_no_el_residuo(pagina):
+    """
+    LAS DOS CLASES DE FALLO NO SE SUMAN EN LA MISMA CASILLA.
+
+    Un strike cantado bola vale ~+0,2 carreras y una bola cantada strike ~-0,2:
+    fundirlas deja el residuo del desequilibrio entre ambas, no el impacto. Con
+    bases vacias y 2-2 el coste real es 0,215 por fallo, y sumadas salia 0,056.
+
+    La tabla ensena UNA clase a la vez, y el control de arriba elige cual. Este
+    test exige el numero grande y que cambie al cambiar de clase.
+    """
+    r = pagina.evaluate(
+        """async () => {
+            const ms = document.querySelector('#matrix_type');
+            ms.value = 'RE_IMPACT'; ms.dispatchEvent(new Event('change', {bubbles: true}));
+            await new Promise(r => setTimeout(r, 400));
+            const sel = document.querySelector('#re_impact_type');
+            sel.value = 'missed_calls'; sel.dispatchEvent(new Event('change', {bubbles: true}));
+            await new Promise(r => setTimeout(r, 400));
+            Array.from(document.querySelectorAll('button'))
+                 .filter(b => /generate/i.test(b.textContent))[0].click();
+            await new Promise(r => setTimeout(r, 3200));
+
+            const ctrl = document.querySelector('#missed-calls-tipo-select');
+            if (!ctrl) return {error: 'no hay control de clase de fallo'};
+            if (ctrl.offsetParent === null) return {error: 'el control esta escondido'};
+
+            // Bases vacias, 0 outs: la primera fila. La columna 2-2 es la cuarta
+            // del orden de RE288 (0-2, 1-2, 0-1, 2-2), tras rombo, etiqueta y outs.
+            const valor = () => {
+                const fila = document.querySelector('#re-impact-table-body tr');
+                return parseFloat(fila.cells[3 + 3].textContent);
+            };
+            ctrl.value = 'strike_called_ball';
+            ctrl.dispatchEvent(new Event('change', {bubbles: true}));
+            await new Promise(r => setTimeout(r, 700));
+            const strikes = valor();
+
+            ctrl.value = 'ball_called_strike';
+            ctrl.dispatchEvent(new Event('change', {bubbles: true}));
+            await new Promise(r => setTimeout(r, 700));
+            return {strikes, bolas: valor()};
+        }"""
+    )
+
+    assert "error" not in r, r["error"]
+    assert abs(r["strikes"]) > 0.15, (
+        f"la casilla 2-2 de bases vacias vale {r['strikes']} y el coste real ronda "
+        f"0,215: se estan fundiendo las dos clases de fallo y queda el residuo"
+    )
+    assert r["strikes"] * r["bolas"] < 0, (
+        f"las dos clases tienen que tener SIGNO OPUESTO y salen "
+        f"{r['strikes']} y {r['bolas']}: el control no cambia nada"
+    )
+
+
+def test_missed_calls_TODA_la_superficie_de_control_responde(pagina):
+    """
+    EL TEST QUE FALTABA, Y POR ESO SE ROMPIO TODO.
+
+    Missed Calls tiene su propio renderizador --sus datos vienen de otro parquet y
+    su tabla tiene otra forma-- y por eso NO hereda nada de renderReImpactPage: ni
+    el heatmap, ni los porcentajes, ni el repintado al cambiar de temporadas, ni
+    las descargas. Cada control hay que engancharlo a mano.
+
+    Los tests anteriores comprobaban UN control cada uno, el que se acababa de
+    tocar, y pasaban mientras los demas seguian muertos. Este los recorre todos de
+    una vez: si cualquiera deja de responder, se pone rojo.
+    """
+    import json as _json
+
+    r = pagina.evaluate(
+        """async () => {
+            const d = ms => new Promise(r => setTimeout(r, ms));
+            const ms_ = document.getElementById('matrix_type');
+            ms_.value = 'RE_IMPACT'; ms_.dispatchEvent(new Event('change', {bubbles: true}));
+            await d(400);
+            const sel = document.getElementById('re_impact_type');
+            sel.value = 'missed_calls'; sel.dispatchEvent(new Event('change', {bubbles: true}));
+            await d(400);
+            const gen = () => Array.from(document.querySelectorAll('button'))
+                .filter(b => /generate/i.test(b.textContent))[0].click();
+            gen(); await d(3200);
+
+            const cuerpo = () => document.querySelector('#re-impact-table-body')
+                                         ?.textContent.replace(/\s+/g, ' ').trim();
+            const out = {};
+
+            // 1. El suelo de temporadas: Statcast empieza en 2008.
+            const desde = document.querySelector('#from_season');
+            out.minDesde = desde ? Math.min(...Array.from(desde.options)
+                .map(o => parseInt(o.value)).filter(Number.isFinite)) : null;
+
+            // 2. Cambiar el intervalo tiene que cambiar los numeros.
+            const antesRango = cuerpo();
+            if (desde) {
+                desde.value = '2015';
+                desde.dispatchEvent(new Event('change', {bubbles: true}));
+                await d(400); gen(); await d(3200);
+            }
+            out.cambiaConTemporadas = cuerpo() !== antesRango;
+
+            // 3. El heatmap tiene que pintar y despintar.
+            const hm = document.getElementById('re-impact-heatmap-toggle');
+            const conColor = () => document.querySelectorAll(
+                '#re-impact-table-body td span[style*="background"]').length;
+            if (!hm) { out.heatmap = 'no existe'; }
+            else {
+                if (!hm.checked) { hm.click(); await d(700); }
+                const encendido = conColor();
+                hm.click(); await d(700);
+                const apagado = conColor();
+                hm.click(); await d(500);
+                out.heatmap = {encendido, apagado};
+            }
+
+            // 4. Los porcentajes tienen que cambiar lo que se ve.
+            const pct = document.getElementById('re-impact-percent-toggle');
+            const antesPct = cuerpo();
+            if (pct) { pct.checked = true; pct.dispatchEvent(new Event('change', {bubbles: true})); await d(800); }
+            out.cambiaConPorcentajes = cuerpo() !== antesPct;
+            if (pct) { pct.checked = false; pct.dispatchEvent(new Event('change', {bubbles: true})); await d(500); }
+
+            return out;
+        }"""
+    )
+
+    assert r["minDesde"] == 2008, (
+        f"el selector de temporadas empieza en {r['minDesde']}: Statcast arranca "
+        f"en 2008 y por debajo no hay coordenadas de lanzamiento"
+    )
+    assert r["cambiaConTemporadas"], "se cambio el intervalo y la tabla no se movio"
+    assert r["heatmap"] != "no existe", "no hay interruptor de heatmap"
+    assert r["heatmap"]["encendido"] > 0, "el heatmap esta encendido y no pinta"
+    assert r["heatmap"]["apagado"] == 0, (
+        f"se apago el heatmap y quedan {r['heatmap']['apagado']} celdas pintadas"
+    )
+    assert r["cambiaConPorcentajes"], "se activaron los porcentajes y la tabla no cambio"
+
+
+@pytest.mark.parametrize("formato", ["csv", "json"])
+def test_missed_calls_baja_un_fichero_CON_CONTENIDO(pagina, formato):
+    """
+    Bajar un fichero no basta: el JSON bajaba VACIO. El generador tiene su propia
+    cadena por tipo y Missed Calls no estaba en ella.
+    """
+    import json as _json
+
+    _generar_matriz(pagina, "RE_IMPACT")
+    pagina.evaluate(
+        """async () => {
+            const sel = document.getElementById('re_impact_type');
+            sel.value = 'missed_calls'; sel.dispatchEvent(new Event('change', {bubbles: true}));
+            await new Promise(r => setTimeout(r, 400));
+            Array.from(document.querySelectorAll('button'))
+                 .filter(b => /generate/i.test(b.textContent))[0].click();
+            await new Promise(r => setTimeout(r, 3200));
+        }"""
+    )
+    pagina.select_option("#re-impact-format-select", formato)
+
+    try:
+        with pagina.expect_download(timeout=15000) as info:
+            pagina.locator("#download-re-impact-btn").click()
+    except PlaywrightTimeout:
+        raise AssertionError(f"{formato}: se pulso y no bajo nada") from None
+
+    contenido = pathlib.Path(info.value.path()).read_text(encoding="utf-8", errors="replace")
+    assert contenido.strip(), f"{formato}: el fichero vino VACIO"
+
+    if formato == "json":
+        datos = _json.loads(contenido)
+        filas = datos.get("data") or datos.get("rows") or []
+        assert len(filas) >= 24, f"el JSON trae {len(filas)} filas y la rejilla son 288 casillas"
+    else:
+        assert contenido.count("\n") >= 24, "un CSV con cabecera y poco mas"
