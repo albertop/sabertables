@@ -2800,3 +2800,65 @@ Más `renderWRCTable`, calcado de `renderWOBATable`.
 
 Ocho sitios dispersos en un fichero es exactamente la forma que dejó las tres
 tablas de RE Impact en blanco, una por ronda. La red va antes que el cambio.
+
+### 8.9 Missed Calls — impacto en carreras de los cantos equivocados (12 ago 2026)
+
+**Qué mide:** cuántas carreras mueven los strikes que se cantan bola y las bolas
+que se cantan strike, por conteo y estado de bases.
+
+**No es catcher framing, y esa es toda la gracia.** Framing exige *atribuir*:
+separar lo que hizo el receptor de lo que hicieron el lanzador, el árbitro y el
+bateador. Eso obliga a un modelo y a pelear con el sesgo de selección — el mismo
+muro que frenó el emparejamiento del bullpen. Missed calls mide **el suceso, no a
+quién culpar**, y sin atribución no hay confusión que deshacer.
+
+Encaja con el sitio: agregado de liga por estado base-out y conteo, sin un solo
+jugador.
+
+#### Lo medido (2025)
+
+| | lanzamientos | carreras (bateador) | por canto |
+|---|---|---|---|
+| Strike cantado bola | 18.682 | +2.730,5 | +0,146 |
+| Bola cantada strike | 12.157 | −1.678,0 | −0,138 |
+| **Neto** | **30.839** | **+1.052,6** | |
+
+**4.433 carreras movidas** en magnitud. Los fallos casi se compensan —el neto es
+un cuarto del total— pero cada uno movió una jugada concreta.
+
+**El sesgo no es azar:** hay un 54% más de strikes perdidos que de bolas
+regaladas, o sea que el árbitro medio tiene una zona **más pequeña** que la de
+reglamento.
+
+**El coste depende del conteo, y mucho:** 0,14 carreras con dos strikes —donde el
+fallo decide un ponche— contra prácticamente cero en 2-0 y 3-0. El mismo error
+vale diez veces más según cuándo ocurra. Eso es lo que hace que la tabla tenga que
+ir por conteo.
+
+#### De dónde salen los datos
+
+- `dbo.scastPitch` — `plate_x`, `plate_z`, `sz_top`, `sz_bot`, `description`.
+  Cobertura **2008-2025**, ~350.000 lanzamientos tomados por temporada.
+- `dbo.fn_is_strike(plate_x, plate_z, sz_top, sz_bot)` — la zona de reglamento,
+  ancho 17″ + 2×radio de pelota, ya en pies.
+- `dbo.scastPitchValues` — une cada lanzamiento con `runners`, `outs` y `count`.
+- `re288_values.parquet` y `re24_values.parquet` — la valoración. **No hay que
+  inventar ninguna métrica nueva.**
+
+#### Las dos decisiones de modelado, que hay que declarar en la UI
+
+1. **«Correcto» = zona de reglamento**, no la zona que los árbitros aplican de
+   verdad, que es ovalada y cambia con conteo y lateralidad. La tabla mide
+   *desviación respecto al reglamento*: definición limpia y auditable, pero se
+   leerá como «el árbitro se equivocó» si no se dice.
+2. **Los cantos terminales se valoran con RE24, no con RE288.** Un tercer strike o
+   una cuarta bola no tienen conteo siguiente: el ponche va a
+   `RE24(runners, outs+1)` y la base por bolas a `RE24(avance, outs)`. Es una
+   costura entre dos matrices y tiene que estar escrita.
+
+#### Avisos de cobertura
+
+- El suelo es **2008**, no 1910. Hay que marcarlo como el resto de tablas de la
+  era Statcast.
+- Lanzamientos sin coordenadas: **12.308 en 2008**, 76 en 2025. Declararlos o
+  excluirlos, pero no callarlos.
