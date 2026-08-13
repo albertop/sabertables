@@ -137,8 +137,8 @@ def _generar_re_impact(pagina, analisis: str) -> dict:
                  .filter(b => /generate/i.test(b.textContent))[0].click();
             await new Promise(r => setTimeout(r, 3500));
 
-            const cuerpo = document.querySelector('#re288-table-body');
-            const cabecera = document.querySelector('#re288-table-head');
+            const cuerpo = document.querySelector('#re-impact-table-body');
+            const cabecera = document.querySelector('#re-impact-table-head');
             const titulo = document.querySelector('#re-impact-table-title');
             const filas = Array.from(cuerpo ? cuerpo.querySelectorAll('tr') : []);
             return {
@@ -240,7 +240,7 @@ def test_el_rombo_ilumina_las_bases_QUE_TOCAN(pagina, analisis):
     Se comprueba contra el numero de corredores que dice la etiqueta.
     """
     _generar_re_impact(pagina, analisis)
-    filas = _bases_por_fila(pagina, "#re288-table-body")
+    filas = _bases_por_fila(pagina, "#re-impact-table-body")
 
     assert filas, f"{analisis}: ninguna fila con rombo"
     for f in filas:
@@ -277,7 +277,7 @@ def test_las_dos_tablas_ensenan_LOS_MISMOS_escenarios(pagina, familia, analisis)
             Array.from(document.querySelectorAll('button'))
                  .filter(b => /generate/i.test(b.textContent))[0].click();
             await new Promise(r => setTimeout(r, 3200));
-            return Array.from(document.querySelectorAll('#re288-table-body tr'))
+            return Array.from(document.querySelectorAll('#re-impact-table-body tr'))
                         .map(tr => (tr.querySelector('th, td')?.textContent || '')
                                    .replace(/\\s+/g, ' ').trim());
         }""",
@@ -332,10 +332,10 @@ def _descargar(pagina, analisis: str, formato: str):
     # Los identificadores REALES, mirados en la pagina. Los que puse a ojo
     # ('#re-impact-download-btn') no existen, y el respaldo por texto pulsaba
     # cualquier boton: el test moria en un timeout mudo que no decia nada.
-    pagina.select_option("#re288-format-select", formato)
+    pagina.select_option("#re-impact-format-select", formato)
 
-    boton = pagina.locator("#download-re288-btn")
-    assert boton.count() == 1, "no existe #download-re288-btn"
+    boton = pagina.locator("#download-re-impact-btn")
+    assert boton.count() == 1, "no existe #download-re-impact-btn"
     boton.wait_for(state="visible", timeout=10000)
 
     try:
