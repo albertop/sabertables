@@ -36,10 +36,28 @@ La estructura, tal cual:
 | Separador | Borde grueso cada 3 filas, al cerrar cada grupo |
 | Columnas fijas | El rombo y la etiqueta van `sticky-col`: con 12 columnas de conteo la tabla se desplaza en horizontal y hay que saber en qué fila estás |
 
-**Por qué esto y no filas de conteo.** Lo medido dice que el coste depende sobre
-todo del conteo —0,146 carreras con dos strikes contra ~0,00 en 2-0—, pero
-poniéndolo en columnas ese patrón se lee **de izquierda a derecha en cada fila**,
-y además se conserva el eje de bases. No hay que elegir entre los dos.
+**Por qué las 24 filas, y por qué el rombo.** Porque **el eje de bases pesa MÁS
+que el del conteo**, cosa que no supe hasta medirla:
+
+| | rango del coste por canto |
+|---|---|
+| entre estados de bases, dentro de cada conteo | **0,2076 carreras** |
+| entre conteos, colapsando las bases | 0,1684 carreras |
+
+El caso más claro es 2-2: de **0,082 a 0,502 carreras** según las bases, seis
+veces. Colapsar ese eje publicaría 0,1296 para los ocho estados y escondería el
+hallazgo más grande de los dos. Y tiene sentido físico: con las bases llenas una
+cuarta bola mal cantada empuja una carrera; con las bases vacías solo cambia un
+conteo.
+
+El rombo va porque hace legible ese eje, que es el idioma del sitio. No va de
+adorno ni por copiar RE288.
+
+**Aviso sobre cómo llegué aquí.** Puse las 24 filas y el rombo copiando RE288 por
+inercia, sin medir si el eje de bases aportaba algo —el usuario había pedido 12
+columnas de conteo y 3 de outs, o sea 3 filas—. La justificación de arriba
+existe porque él preguntó *"¿y por qué vas a poner el rombo?"*. La conclusión
+resultó ser la correcta; el camino no lo era.
 
 Y de paso desaparece medio paso 4: el renderizador, la paginación por grupos de 3
 y el manejo de `count_columns` ya existen. Lo que NO hay que hacer es escribirlo
