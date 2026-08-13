@@ -19,18 +19,32 @@ importan menos.
 Eso rompe el molde de los demás análisis de RE Impact, que van por estado de
 bases. Es la primera decisión de diseño y hay que tomarla antes de escribir nada.
 
-## Paso 0 — Decidir la forma de la tabla
+## Paso 0 — DECIDIDO: la forma es la de RE288
 
-Tres opciones, y no es obvia:
+Rejilla de **24 filas × 12 columnas de conteo**, calcada de la tabla de RE288.
+Mis tres opciones anteriores sobraban: la casa ya tiene resuelto exactamente este
+problema —enseñar conteo y estado base-out a la vez— y la solución está en
+`renderRE288Page`.
 
-- **12 filas de conteo × 3 columnas de outs.** La más fiel a lo medido. Se sale
-  del molde: ninguna otra tabla de RE Impact tiene filas de conteo.
-- **8 estados de bases × 3 outs**, con el conteo agregado. Encaja con el molde y
-  con `escenariosPorEstadoDeBases`, pero **esconde el hallazgo principal**.
-- **Las dos, con el selector de `re_impact_type` distinguiendo** `missed_calls` de
-  `missed_calls_by_count`. Más trabajo y más superficie que mantener.
+La estructura, tal cual:
 
-Sin esto resuelto, todo lo demás es prematuro. **Es una decisión del usuario.**
+| | |
+|---|---|
+| Filas | **8 estados de bases × 3 outs = 24** |
+| Columnas | El rombo, la etiqueta, `Outs`, y **las 12 de conteo** (`count_columns`) |
+| Rombo y etiqueta | `rowspan="3"`, una vez por grupo de estado de bases |
+| Separador | Borde grueso cada 3 filas, al cerrar cada grupo |
+| Columnas fijas | El rombo y la etiqueta van `sticky-col`: con 12 columnas de conteo la tabla se desplaza en horizontal y hay que saber en qué fila estás |
+
+**Por qué esto y no filas de conteo.** Lo medido dice que el coste depende sobre
+todo del conteo —0,146 carreras con dos strikes contra ~0,00 en 2-0—, pero
+poniéndolo en columnas ese patrón se lee **de izquierda a derecha en cada fila**,
+y además se conserva el eje de bases. No hay que elegir entre los dos.
+
+Y de paso desaparece medio paso 4: el renderizador, la paginación por grupos de 3
+y el manejo de `count_columns` ya existen. Lo que NO hay que hacer es escribirlo
+de nuevo a mano, que es justo el error que cometí con el heatmap de wRC
+Components.
 
 ## Paso 1 — Los tests, antes que el código
 
