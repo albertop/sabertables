@@ -917,3 +917,66 @@ def test_al_CAMBIAR_el_desplegable_sin_generar_wrc_desaparece(pagina, tipo):
         f"se eligio {tipo} en el desplegable y wRC Components sigue en pantalla. "
         f"Visibles: {visibles}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Missed Calls (8.9). ANTES DEL CODIGO: hoy en rojo.
+# ---------------------------------------------------------------------------
+
+def test_missed_calls_pinta_la_rejilla_de_24_por_12(pagina):
+    """
+    La forma es la de RE288, y no por copiarla: los DOS ejes llevan senal, y el
+    de bases mas que el del conteo --0,2076 carreras de rango contra 0,1684--.
+    En 2-2 el coste va de 0,082 a 0,502 segun las bases, seis veces.
+
+    Colapsar cualquiera de los dos ejes esconderia la mitad de lo que la tabla
+    tiene que contar, asi que el test exige los dos: 24 filas y 12 columnas.
+    """
+    r = pagina.evaluate(
+        """async () => {
+            const ms = document.querySelector('#matrix_type');
+            if (!Array.from(ms.options).some(o => o.value === 'RE_IMPACT')) {
+                return {error: 'no hay RE_IMPACT'};
+            }
+            ms.value = 'RE_IMPACT'; ms.dispatchEvent(new Event('change', {bubbles: true}));
+            await new Promise(r => setTimeout(r, 400));
+
+            const sel = document.querySelector('#re_impact_type');
+            if (!Array.from(sel.options).some(o => o.value === 'missed_calls')) {
+                return {error: 'missed_calls no esta en el desplegable'};
+            }
+            sel.value = 'missed_calls'; sel.dispatchEvent(new Event('change', {bubbles: true}));
+            await new Promise(r => setTimeout(r, 400));
+
+            Array.from(document.querySelectorAll('button'))
+                 .filter(b => /generate/i.test(b.textContent))[0].click();
+            await new Promise(r => setTimeout(r, 3500));
+
+            const cuerpo = document.querySelector('#re-impact-table-body');
+            const filas = Array.from(cuerpo ? cuerpo.querySelectorAll('tr') : []);
+            if (!filas.length) return {error: 'la tabla se pinto SIN FILAS'};
+
+            return {
+                filas: filas.length,
+                // Las columnas de conteo: se cuentan sobre una fila del medio,
+                // porque la primera de cada grupo lleva el rombo con rowspan.
+                celdas: filas[1] ? filas[1].cells.length : 0,
+                rombos: cuerpo.querySelectorAll('svg').length,
+                conNumero: filas.reduce((a, tr) => a + Array.from(tr.cells)
+                    .filter(c => /[0-9]/.test(c.textContent)).length, 0)
+            };
+        }"""
+    )
+
+    assert "error" not in r, f"missed_calls no se pinto: {r['error']}"
+    assert r["conNumero"] > 0, "filas sin un solo numero"
+    assert r["filas"] == 24, (
+        f"se pintaron {r['filas']} filas y son 8 estados de bases x 3 outs = 24. "
+        f"Si son 3, se colapso el eje de bases, que es el que MAS pesa."
+    )
+    assert r["rombos"] == 8, (
+        f"{r['rombos']} rombos; va uno por estado de bases, con rowspan de 3"
+    )
+    assert r["celdas"] >= 12, (
+        f"solo {r['celdas']} celdas en una fila del medio: faltan conteos"
+    )

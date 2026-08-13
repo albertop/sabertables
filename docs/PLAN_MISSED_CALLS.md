@@ -85,6 +85,20 @@ La regla de la casa, y aquí hay tres que importan:
    van por otra rama. **No falló nada: devolvió un número plausible y equivocado.**
    El test tiene que exigir cero casillas sin encontrar.
 
+## Paso 1-bis — DECIDIDO: parquet propio
+
+`missed_calls.parquet`, no dentro de `re_impact.parquet`.
+
+Ahí caben 6 filas por temporada —sac_bunt— y Missed Calls trae 8 estados × 3 outs
+× 12 conteos × 2 brazos: **576 por temporada, ~10.000 en la serie**. Y una
+dimensión que ese esquema no tiene, el conteo.
+
+Esquema: `season, runners, outs, count, tipo, n, delta_re`.
+
+Es la lección de los factores de parque de esta misma sesión: **la información
+nueva no entra deformando la que ya funciona**. Si Missed Calls sale mal, los
+otros seis análisis ni se enteran. El precio es un dataset y un endpoint más.
+
 ## Paso 2 — La vista
 
 `24_v_re_analysis_missed_calls.sql`, uniendo `scastPitch` con `scastPitchValues`

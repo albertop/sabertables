@@ -1406,3 +1406,97 @@ def test_el_pitagorico_cuenta_las_temporadas_completas():
         f"temporadas modernas con menos de 2.400 juegos: "
         f"{flojas[['season', col_g]].to_dict('records')}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Missed Calls (8.9). LOS TESTS VAN ANTES QUE EL CODIGO: hoy estan ROJOS.
+#
+# PARQUET PROPIO, no dentro de re_impact.parquet. Ahi caben 6 filas por temporada
+# --sac_bunt-- y Missed Calls trae 8 estados x 3 outs x 12 conteos x 2 brazos, o
+# sea 576 por temporada y ~10.000 en la serie. Ademas de una dimension mas, el
+# conteo, que ese esquema no tiene.
+#
+# Es la leccion de los factores de parque de esta misma sesion: la informacion
+# nueva no entra deformando la que ya funciona. Si Missed Calls sale mal, los
+# otros seis analisis ni se enteran.
+#
+# Ver docs/PLAN_MISSED_CALLS.md.
+# ---------------------------------------------------------------------------
+
+MISSED_CALLS_2025 = {
+    "strike_cantado_bola": 18682,
+    "bola_cantada_strike": 12157,
+    "total": 30839,
+}
+PARQUET_MISSED_CALLS = DATA_DIR / "missed_calls.parquet"
+
+
+def _missed_calls():
+    import pandas as pd
+
+    if not PARQUET_MISSED_CALLS.exists():
+        raise AssertionError(
+            "no existe missed_calls.parquet. Es lo esperado hasta que se construya "
+            "el analisis (8.9)."
+        )
+    return pd.read_parquet(PARQUET_MISSED_CALLS)
+
+
+def test_missed_calls_tiene_las_columnas_de_su_esquema():
+    """
+    Parquet propio, esquema propio. La columna que NO cabia en re_impact.parquet
+    es `count`, y es el eje entero de la tabla.
+    """
+    df = _missed_calls()
+    faltan = [c for c in ("season", "runners", "outs", "count", "tipo", "n", "delta_re")
+              if c not in df.columns]
+
+    assert not faltan, f"faltan columnas: {faltan}. Hay: {sorted(df.columns)}"
+
+
+def test_missed_calls_cuadra_con_lo_medido_en_2025():
+    """
+    Los dos brazos tienen que sumar lo contado a mano ANTES de escribir el
+    pipeline: 18.682 strikes cantados bola y 12.157 bolas cantadas strike.
+
+    Si el pipeline devuelve otra cosa sin que nadie lo pida, algo cambio aguas
+    arriba --el filtro game_type='R', la zona, o la poblacion de tomados-- y hay
+    que enterarse aqui y no en la pantalla.
+    """
+    df = _missed_calls()
+    x = df[df["season"] == 2025]
+    total = int(x["n"].sum())
+
+    assert total == MISSED_CALLS_2025["total"], (
+        f"2025 trae {total:,} cantos equivocados y se midieron "
+        f"{MISSED_CALLS_2025['total']:,}."
+    )
+
+
+def test_missed_calls_trae_los_doce_conteos_y_los_ocho_estados():
+    """
+    Los DOS ejes llevan senal, y el de bases mas que el del conteo: 0,2076
+    carreras de rango contra 0,1684. En 2-2 el coste va de 0,082 a 0,502 segun las
+    bases. Si falta cualquiera de los dos ejes, la tabla esconde la mitad.
+    """
+    df = _missed_calls()
+    conteos = df["count"].astype(str).nunique()
+    bases = df["runners"].astype(str).nunique()
+
+    assert conteos == 12, f"se esperaban 12 conteos y hay {conteos}"
+    assert bases == 8, f"se esperaban 8 estados de bases y hay {bases}"
+
+
+def test_missed_calls_no_mete_la_postemporada():
+    """
+    En 2025 hay 14.245 lanzamientos de postemporada, un 2%. No es catastrofico,
+    pero es OTRA poblacion: en octubre ni los arbitros ni los bateadores son una
+    muestra de la temporada. El total de 2025 lo delata si se cuelan.
+    """
+    df = _missed_calls()
+    total = int(df[df["season"] == 2025]["n"].sum())
+
+    assert total <= MISSED_CALLS_2025["total"], (
+        f"2025 trae {total:,} fallos, mas que los {MISSED_CALLS_2025['total']:,} "
+        f"de temporada regular: se colo la postemporada."
+    )
