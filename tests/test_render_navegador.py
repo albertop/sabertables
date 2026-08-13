@@ -137,8 +137,8 @@ def _generar_re_impact(pagina, analisis: str) -> dict:
                  .filter(b => /generate/i.test(b.textContent))[0].click();
             await new Promise(r => setTimeout(r, 3500));
 
-            const cuerpo = document.querySelector('#re-impact-table-body');
-            const cabecera = document.querySelector('#re-impact-table-head');
+            const cuerpo = document.querySelector('#re288-table-body');
+            const cabecera = document.querySelector('#re288-table-head');
             const titulo = document.querySelector('#re-impact-table-title');
             const filas = Array.from(cuerpo ? cuerpo.querySelectorAll('tr') : []);
             return {
@@ -240,7 +240,7 @@ def test_el_rombo_ilumina_las_bases_QUE_TOCAN(pagina, analisis):
     Se comprueba contra el numero de corredores que dice la etiqueta.
     """
     _generar_re_impact(pagina, analisis)
-    filas = _bases_por_fila(pagina, "#re-impact-table-body")
+    filas = _bases_por_fila(pagina, "#re288-table-body")
 
     assert filas, f"{analisis}: ninguna fila con rombo"
     for f in filas:
@@ -277,7 +277,7 @@ def test_las_dos_tablas_ensenan_LOS_MISMOS_escenarios(pagina, familia, analisis)
             Array.from(document.querySelectorAll('button'))
                  .filter(b => /generate/i.test(b.textContent))[0].click();
             await new Promise(r => setTimeout(r, 3200));
-            return Array.from(document.querySelectorAll('#re-impact-table-body tr'))
+            return Array.from(document.querySelectorAll('#re288-table-body tr'))
                         .map(tr => (tr.querySelector('th, td')?.textContent || '')
                                    .replace(/\\s+/g, ' ').trim());
         }""",
@@ -332,10 +332,10 @@ def _descargar(pagina, analisis: str, formato: str):
     # Los identificadores REALES, mirados en la pagina. Los que puse a ojo
     # ('#re-impact-download-btn') no existen, y el respaldo por texto pulsaba
     # cualquier boton: el test moria en un timeout mudo que no decia nada.
-    pagina.select_option("#re-impact-format-select", formato)
+    pagina.select_option("#re288-format-select", formato)
 
-    boton = pagina.locator("#download-re-impact-btn")
-    assert boton.count() == 1, "no existe #download-re-impact-btn"
+    boton = pagina.locator("#download-re288-btn")
+    assert boton.count() == 1, "no existe #download-re288-btn"
     boton.wait_for(state="visible", timeout=10000)
 
     try:
@@ -952,7 +952,7 @@ def test_missed_calls_pinta_la_rejilla_de_24_por_12(pagina):
                  .filter(b => /generate/i.test(b.textContent))[0].click();
             await new Promise(r => setTimeout(r, 3500));
 
-            const cuerpo = document.querySelector('#re-impact-table-body');
+            const cuerpo = document.querySelector('#re288-table-body');
             const filas = Array.from(cuerpo ? cuerpo.querySelectorAll('tr') : []);
             if (!filas.length) return {error: 'la tabla se pinto SIN FILAS'};
 
@@ -970,12 +970,15 @@ def test_missed_calls_pinta_la_rejilla_de_24_por_12(pagina):
 
     assert "error" not in r, f"missed_calls no se pinto: {r['error']}"
     assert r["conNumero"] > 0, "filas sin un solo numero"
-    assert r["filas"] == 24, (
-        f"se pintaron {r['filas']} filas y son 8 estados de bases x 3 outs = 24. "
-        f"Si son 3, se colapso el eje de bases, que es el que MAS pesa."
+    # 12 por pagina, HEREDADO de RE288 -- que es el punto del refactor. Antes
+    # salian las 24 de golpe porque mi renderizador no paginaba.
+    assert r["filas"] == 12, (
+        f"se pintaron {r['filas']} filas; RE288 pagina de 12 en 12. Si son 24, se "
+        f"perdio la paginacion heredada; si son 3, se colapso el eje de bases."
     )
-    assert r["rombos"] == 8, (
-        f"{r['rombos']} rombos; va uno por estado de bases, con rowspan de 3"
+    assert r["rombos"] == 4, (
+        f"{r['rombos']} rombos en la pagina; son 4 estados de bases por pagina, "
+        f"cada uno con rowspan de 3"
     )
     assert r["celdas"] >= 12, (
         f"solo {r['celdas']} celdas en una fila del medio: faltan conteos"
@@ -1012,7 +1015,7 @@ def test_missed_calls_ensena_el_coste_REAL_y_no_el_residuo(pagina):
             // Bases vacias, 0 outs: la primera fila. La columna 2-2 es la cuarta
             // del orden de RE288 (0-2, 1-2, 0-1, 2-2), tras rombo, etiqueta y outs.
             const valor = () => {
-                const fila = document.querySelector('#re-impact-table-body tr');
+                const fila = document.querySelector('#re288-table-body tr');
                 return parseFloat(fila.cells[3 + 3].textContent);
             };
             ctrl.value = 'strike_called_ball';
@@ -1066,9 +1069,16 @@ def test_missed_calls_TODA_la_superficie_de_control_responde(pagina):
                 .filter(b => /generate/i.test(b.textContent))[0].click();
             gen(); await d(3200);
 
-            const cuerpo = () => document.querySelector('#re-impact-table-body')
+            const cuerpo = () => document.querySelector('#re288-table-body')
                                          ?.textContent.replace(/\s+/g, ' ').trim();
             const out = {};
+
+            // 0. El control de clase de canto tiene que estar VISIBLE, y antes
+            //    de pulsar Generate: es un parametro de la consulta. Manipularlo
+            //    por id con dispatchEvent funciona aunque este escondido, que es
+            //    como se me colo estando dentro de un contenedor oculto.
+            const ctrl = document.getElementById('missed-calls-tipo-select');
+            out.controlVisible = !!ctrl && ctrl.offsetParent !== null;
 
             // 1. El suelo de temporadas: Statcast empieza en 2008.
             const desde = document.querySelector('#from_season');
@@ -1085,9 +1095,9 @@ def test_missed_calls_TODA_la_superficie_de_control_responde(pagina):
             out.cambiaConTemporadas = cuerpo() !== antesRango;
 
             // 3. El heatmap tiene que pintar y despintar.
-            const hm = document.getElementById('re-impact-heatmap-toggle');
+            const hm = document.getElementById('re288-heatmap-toggle');
             const conColor = () => document.querySelectorAll(
-                '#re-impact-table-body td span[style*="background"]').length;
+                '#re288-table-body td span[style*="background"]').length;
             if (!hm) { out.heatmap = 'no existe'; }
             else {
                 if (!hm.checked) { hm.click(); await d(700); }
@@ -1099,16 +1109,33 @@ def test_missed_calls_TODA_la_superficie_de_control_responde(pagina):
             }
 
             // 4. Los porcentajes tienen que cambiar lo que se ve.
-            const pct = document.getElementById('re-impact-percent-toggle');
-            const antesPct = cuerpo();
-            if (pct) { pct.checked = true; pct.dispatchEvent(new Event('change', {bubbles: true})); await d(800); }
-            out.cambiaConPorcentajes = cuerpo() !== antesPct;
-            if (pct) { pct.checked = false; pct.dispatchEvent(new Event('change', {bubbles: true})); await d(500); }
+            //
+            // El interruptor de Percentages vive en la cabecera de RE Impact, y
+            // esta tabla se pinta en la de RE288: alli no se ve. Y el porcentaje
+            // lo calcula el SERVIDOR, asi que es un parametro de la consulta, con
+            // su selector junto a los demas.
+            const modo = document.getElementById('missed-calls-modo-select');
+            if (!modo) { out.cambiaConPorcentajes = 'no hay selector de modo'; }
+            else if (modo.offsetParent === null) { out.cambiaConPorcentajes = 'el selector esta escondido'; }
+            else {
+                const antesPct = cuerpo();
+                modo.value = 'percentage';
+                modo.dispatchEvent(new Event('change', {bubbles: true}));
+                await d(3400);
+                out.cambiaConPorcentajes = cuerpo() !== antesPct;
+                modo.value = 'value';
+                modo.dispatchEvent(new Event('change', {bubbles: true}));
+                await d(3000);
+            }
 
             return out;
         }"""
     )
 
+    assert r["controlVisible"], (
+        "el selector de clase de canto no se ve: esta en un contenedor oculto o "
+        "no se muestra al elegir el analisis"
+    )
     assert r["minDesde"] == 2008, (
         f"el selector de temporadas empieza en {r['minDesde']}: Statcast arranca "
         f"en 2008 y por debajo no hay coordenadas de lanzamiento"
@@ -1119,7 +1146,9 @@ def test_missed_calls_TODA_la_superficie_de_control_responde(pagina):
     assert r["heatmap"]["apagado"] == 0, (
         f"se apago el heatmap y quedan {r['heatmap']['apagado']} celdas pintadas"
     )
-    assert r["cambiaConPorcentajes"], "se activaron los porcentajes y la tabla no cambio"
+    assert r["cambiaConPorcentajes"] is True, (
+        f"el modo Percentage no cambio la tabla: {r['cambiaConPorcentajes']}"
+    )
 
 
 @pytest.mark.parametrize("formato", ["csv", "json"])
@@ -1141,11 +1170,11 @@ def test_missed_calls_baja_un_fichero_CON_CONTENIDO(pagina, formato):
             await new Promise(r => setTimeout(r, 3200));
         }"""
     )
-    pagina.select_option("#re-impact-format-select", formato)
+    pagina.select_option("#re288-format-select", formato)
 
     try:
         with pagina.expect_download(timeout=15000) as info:
-            pagina.locator("#download-re-impact-btn").click()
+            pagina.locator("#download-re288-btn").click()
     except PlaywrightTimeout:
         raise AssertionError(f"{formato}: se pulso y no bajo nada") from None
 
@@ -1158,3 +1187,246 @@ def test_missed_calls_baja_un_fichero_CON_CONTENIDO(pagina, formato):
         assert len(filas) >= 24, f"el JSON trae {len(filas)} filas y la rejilla son 288 casillas"
     else:
         assert contenido.count("\n") >= 24, "un CSV con cabecera y poco mas"
+
+
+# ---------------------------------------------------------------------------
+# Missed Calls: QUE DICE la tabla, no solo que pinte
+#
+# Los tests anteriores comprueban que hay filas y que los ficheros bajan. Pasaban
+# mientras el titulo salia sin badge, el subtitulo era el de RE288, el fichero se
+# llamaba RE288_Values, el CSV no decia que clase de canto traia y la paginacion
+# no se movia. Ninguno miraba el CONTENIDO.
+# ---------------------------------------------------------------------------
+
+def _abrir_missed_calls(pagina, clase="strike_called_ball"):
+    return pagina.evaluate(
+        """async (clase) => {
+            const d = ms => new Promise(r => setTimeout(r, ms));
+            const g = (id, v) => { const e = document.getElementById(id);
+                                   e.value = v; e.dispatchEvent(new Event('change', {bubbles: true})); };
+            g('matrix_type', 'RE_IMPACT'); await d(400);
+            g('re_impact_type', 'missed_calls'); await d(500);
+            g('missed-calls-tipo-select', clase); await d(300);
+            Array.from(document.querySelectorAll('button'))
+                 .filter(b => /generate/i.test(b.textContent))[0].click();
+            await d(3200);
+            return true;
+        }""",
+        clase,
+    )
+
+
+def test_missed_calls_el_titulo_lleva_la_clase_de_canto_EN_BADGE(pagina):
+    """El resto del sitio pone en badge azul lo que distingue a la tabla."""
+    _abrir_missed_calls(pagina, "ball_called_strike")
+    r = pagina.evaluate(
+        """() => {
+            const t = document.getElementById('re288-table-title');
+            return {
+                texto: t?.textContent.replace(/\s+/g, ' ').trim(),
+                badges: Array.from(t?.querySelectorAll('.primary-badge') || [])
+                             .map(b => b.textContent.trim())
+            };
+        }"""
+    )
+
+    assert "Missed Calls" in r["texto"], f"el titulo no dice Missed Calls: {r['texto']!r}"
+    assert any("Balls called strikes" in b for b in r["badges"]), (
+        f"la clase de canto no va en badge azul. Badges: {r['badges']}"
+    )
+
+
+def test_missed_calls_el_subtitulo_no_es_el_de_RE288(pagina):
+    """
+    RE288 describe la expectativa de carreras de la situacion. Esta tabla mide lo
+    que MUEVE un canto equivocado desde esa situacion: no es lo mismo.
+    """
+    _abrir_missed_calls(pagina)
+    sub = pagina.evaluate(
+        "() => document.getElementById('re288-table-title-subtitle')?.textContent.trim()"
+    )
+
+    assert "before the inning ends" not in (sub or ""), (
+        f"sigue el subtitulo de RE288: {sub!r}"
+    )
+    assert "call" in (sub or "").lower(), f"el subtitulo no habla de los cantos: {sub!r}"
+
+
+def test_missed_calls_la_paginacion_CAMBIA_las_filas(pagina):
+    """
+    Que salga "Page 1 of 2" no prueba que el boton haga nada. Se pulsa y la
+    primera fila tiene que ser otra.
+    """
+    _abrir_missed_calls(pagina)
+    r = pagina.evaluate(
+        """async () => {
+            const cont = document.getElementById('re288-table-container');
+            const primera = () => document.querySelector('#re288-table-body tr')
+                                          ?.textContent.replace(/\s+/g, ' ').trim();
+            const siguiente = Array.from(cont.querySelectorAll('button, a'))
+                .find(b => /next|siguiente|▶|›/i.test(b.textContent) && b.offsetParent !== null);
+            if (!siguiente) return {error: 'no hay control de pagina siguiente'};
+            const antes = primera();
+            siguiente.click();
+            await new Promise(r => setTimeout(r, 800));
+            return {antes, despues: primera()};
+        }"""
+    )
+
+    assert "error" not in r, r["error"]
+    assert r["antes"] != r["despues"], (
+        f"se paso de pagina y siguen las mismas filas: {r['antes']!r}"
+    )
+
+
+@pytest.mark.parametrize("formato", ["csv", "json"])
+def test_missed_calls_el_fichero_DICE_que_clase_de_canto_trae(pagina, formato):
+    """
+    Dos descargas de Missed Calls con distinta clase de canto producen numeros
+    distintos. Si ni el nombre ni el contenido lo dicen, quedan dos ficheros
+    indistinguibles y nadie sabe cual es cual.
+    """
+    _abrir_missed_calls(pagina, "ball_called_strike")
+    pagina.select_option("#re288-format-select", formato)
+
+    try:
+        with pagina.expect_download(timeout=15000) as info:
+            pagina.locator("#download-re288-btn").click()
+    except PlaywrightTimeout:
+        raise AssertionError(f"{formato}: se pulso y no bajo nada") from None
+
+    nombre = info.value.suggested_filename
+    contenido = pathlib.Path(info.value.path()).read_text(encoding="utf-8", errors="replace")
+
+    assert "RE288_Values" not in nombre, (
+        f"el fichero se llama como la tabla que presta la maquinaria: {nombre}"
+    )
+    assert "Missed" in nombre, f"el nombre no dice que es: {nombre}"
+    assert "ball_called_strike" in nombre.lower() or "balls called strikes" in contenido.lower(), (
+        f"ni el nombre ni el contenido dicen la clase de canto. Nombre: {nombre}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Los puntos de fiabilidad, EN TODO EL SITIO
+#
+# `.reliability-marker` se generaba desde el JS y no estaba definida en el CSS.
+# El HTML salia --spans vacios-- y sin regla no pintaban NADA: la celda se veia
+# atenuada, que es estilo en linea, y el punto no aparecia en ninguna tabla.
+#
+# El test estatico de test_api_regression coge la clase que falta. Este coge algo
+# que aquel no puede: una regla que EXISTE pero no se ve --display:none, 0px,
+# opacidad 0--. Mide el tamano real en el navegador.
+# ---------------------------------------------------------------------------
+
+TABLAS_CON_FIABILIDAD = [
+    ("RE288", None),
+    ("RE_IMPACT", "steal_runs"),
+    ("RE_IMPACT", "gidp"),
+    ("RE_IMPACT", "sac_bunt"),
+    ("RE_IMPACT", "missed_calls"),
+]
+
+
+@pytest.mark.parametrize("matriz,analisis", TABLAS_CON_FIABILIDAD)
+def test_los_puntos_de_fiabilidad_SE_VEN(pagina, matriz, analisis):
+    """
+    Si hay celdas atenuadas tiene que haber puntos, y con tamano.
+
+    Una celda atenuada dice "poca muestra" y el punto dice cuanta. Sin el punto,
+    el usuario ve una celda apagada y no sabe por que: la tabla parece estropeada
+    en vez de informativa.
+    """
+    r = pagina.evaluate(
+        """async ([matriz, analisis]) => {
+            const d = ms => new Promise(r => setTimeout(r, ms));
+            const g = (id, v) => { const e = document.getElementById(id);
+                                   if (!e) return false;
+                                   e.value = v; e.dispatchEvent(new Event('change', {bubbles: true}));
+                                   return true; };
+            g('matrix_type', matriz); await d(400);
+            if (analisis) { g('re_impact_type', analisis); await d(400); }
+            Array.from(document.querySelectorAll('button'))
+                 .filter(b => /generate/i.test(b.textContent))[0].click();
+            await d(3200);
+
+            const cont = Array.from(document.querySelectorAll('[id$="-container"]'))
+                .find(c => !c.classList.contains('d-none') && c.offsetParent !== null
+                        && c.querySelector('tbody tr'));
+            if (!cont) return {error: 'no se pinto ninguna tabla'};
+
+            const marcadores = Array.from(cont.querySelectorAll('.reliability-marker'));
+            // Una celda atenuada lleva opacidad en el estilo en linea.
+            const atenuadas = Array.from(cont.querySelectorAll('tbody span[style*="opacity"]')).length;
+
+            const medidos = marcadores.slice(0, 5).map(m => {
+                const punto = m.querySelector('span');
+                if (!punto) return {sinPunto: true};
+                const cs = getComputedStyle(punto);
+                return {ancho: parseFloat(cs.width), alto: parseFloat(cs.height),
+                        display: cs.display, opacidad: parseFloat(cs.opacity),
+                        fondo: cs.backgroundColor};
+            });
+            return {marcadores: marcadores.length, atenuadas, medidos};
+        }""",
+        [matriz, analisis],
+    )
+
+    assert "error" not in r, f"{matriz}/{analisis}: {r.get('error')}"
+
+    if r["atenuadas"] == 0 and r["marcadores"] == 0:
+        pytest.skip(f"{matriz}/{analisis}: esta tabla no tiene celdas de baja muestra")
+
+    assert r["marcadores"] > 0, (
+        f"{matriz}/{analisis}: hay {r['atenuadas']} celdas atenuadas y NINGUN "
+        f"marcador de fiabilidad"
+    )
+
+    for m in r["medidos"]:
+        assert not m.get("sinPunto"), f"{matriz}/{analisis}: marcador vacio, sin punto dentro"
+        assert m["display"] != "none", f"{matriz}/{analisis}: el punto esta en display:none"
+        assert m["ancho"] > 0 and m["alto"] > 0, (
+            f"{matriz}/{analisis}: el punto mide {m['ancho']}x{m['alto']} px. "
+            f"La clase existe pero no se ve."
+        )
+        assert m["opacidad"] > 0.1, f"{matriz}/{analisis}: el punto es transparente"
+
+
+@pytest.mark.parametrize("modo,esperado", [("value", "runs"), ("percentage", "percentage")])
+def test_missed_calls_el_fichero_dice_LA_UNIDAD(pagina, modo, esperado):
+    """
+    Dos descargas con distinto modo traen numeros de escalas MUY distintas
+    --0,25 carreras contra 25%-- y sin la unidad en el nombre quedan dos ficheros
+    que se confunden. El valor tambien tiene que venir en esa unidad.
+    """
+    pagina.evaluate(
+        """async (modo) => {
+            const d = ms => new Promise(r => setTimeout(r, ms));
+            const g = (id, v) => { const e = document.getElementById(id);
+                                   e.value = v; e.dispatchEvent(new Event('change', {bubbles: true})); };
+            g('matrix_type', 'RE_IMPACT'); await d(400);
+            g('re_impact_type', 'missed_calls'); await d(400);
+            g('missed-calls-modo-select', modo); await d(3400);
+        }""",
+        modo,
+    )
+    pagina.select_option("#re288-format-select", "csv")
+
+    with pagina.expect_download(timeout=15000) as info:
+        pagina.locator("#download-re288-btn").click()
+
+    nombre = info.value.suggested_filename
+    assert esperado in nombre.lower(), f"el nombre no dice la unidad: {nombre}"
+
+    contenido = pathlib.Path(info.value.path()).read_text(encoding="utf-8", errors="replace")
+    numeros = [float(x) for x in __import__("re").findall(r"-?\d+\.\d+", contenido)]
+    assert numeros, "el fichero no trae numeros"
+
+    mayor = max(abs(n) for n in numeros)
+    # EL FICHERO LLEVA LA MAGNITUD CRUDA. En modo Percentage es la RAZON, entre 0
+    # y 1: el x100 y el simbolo son de la pantalla. Un CSV con 38,8 y otro con
+    # 0,388 para el mismo dato es como se acaban mezclando escalas al analizarlo.
+    assert mayor < 5, (
+        f"el mayor valor del fichero es {mayor}. En Percentage tiene que ser la "
+        f"razon (0-1), no el porcentaje (0-100)."
+    )

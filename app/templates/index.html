@@ -314,9 +314,14 @@
         <div class="container-xl px-3 px-md-4 py-3 py-md-4">
             <div class="row align-items-center">
                 <div class="col-12">
-                    <h1 class="text-white display-5 display-md-3 fw-black mb-3 mb-md-4">
-                        <span class="d-none d-sm-inline">MLB Sabermetrics Tables</span>
-                        <span class="d-inline d-sm-none">MLB Sabermetrics Tables</span>
+                    <h1 class="text-white display-5 display-md-3 fw-black mb-3 mb-md-4 d-flex align-items-center gap-2 gap-md-3">
+                        <!-- El logo es DECORATIVO: el nombre ya esta escrito al lado, asi
+                             que alt vacio evita que un lector de pantalla lo lea dos
+                             veces. Y con width/height fijos no salta el texto mientras
+                             carga. -->
+                        <img src="/static/images/logo.png" alt="" width="64" height="64"
+                             class="site-logo" loading="eager" decoding="async">
+                        <span>MLB Sabermetrics Tables</span>
                     </h1>
                     <h2 class="text-secondary-custom fs-6 fs-md-5 fw-normal lh-lg">
                         Using real game data spanning from {{ min_season }} to {{ max_season }}, sourced from Retrosheet & Statcast. These tools help you analyze game situations, understand strategic decisions, and explore how baseball has changed throughout history.
@@ -431,6 +436,27 @@
                                     {% for season in all_seasons|reverse %}
                                     <option value="{{ season }}" {% if season == max_season %}selected{% endif %}>{{ season }}</option>
                                     {% endfor %}
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-3 d-none" id="missed-calls-tipo">
+                            <label class="form-label text-white small" for="missed-calls-tipo-select">Call type</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="missed_calls_type" id="missed-calls-tipo-select" aria-label="Select missed call type">
+                                    <option value="strike_called_ball" selected>Strikes called balls</option>
+                                    <option value="ball_called_strike">Balls called strikes</option>
+                                    <option value="net">Net value</option>
+                                </select>
+                                <span class="material-symbols-outlined select-icon">expand_more</span>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-4 col-lg-2 d-none" id="missed-calls-modo">
+                            <label class="form-label text-white small" for="missed-calls-modo-select">Show as</label>
+                            <div class="select-wrapper">
+                                <select class="form-select form-select-custom" name="missed_calls_display" id="missed-calls-modo-select" aria-label="Show missed call impact as runs or percentage">
+                                    <option value="value" selected>Runs</option>
+                                    <option value="percentage">Percentage</option>
                                 </select>
                                 <span class="material-symbols-outlined select-icon">expand_more</span>
                             </div>
@@ -1002,13 +1028,6 @@
                 </h3>
                 <div class="d-flex align-items-center gap-3">
                     <div class="d-flex align-items-center gap-2">
-                        <div id="missed-calls-tipo" class="d-none me-3">
-                            <select class="form-select form-select-sm form-select-custom" id="missed-calls-tipo-select">
-                                <option value="strike_called_ball">Strikes called balls</option>
-                                <option value="ball_called_strike">Balls called strikes</option>
-                                <option value="net">Net value</option>
-                            </select>
-                        </div>
                         <span class="text-white fw-medium">Percentages</span>
                         <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" role="switch" id="re-impact-percent-toggle" style="cursor: pointer;">

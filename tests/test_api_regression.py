@@ -1421,12 +1421,25 @@ def test_el_selector_de_descarga_ofrece_los_dos_formatos(client, formato):
 # tenga que acordarse de anadirlo a este fichero.
 # ---------------------------------------------------------------------------
 
+# Missed Calls SE ELIGE en el desplegable de RE Impact pero NO SE PINTA con su
+# maquinaria: tiene su propio parquet y su tabla es una rejilla de 24 x 12 que
+# dibuja el renderizador de RE288. Asi que no tiene clave de pivote, ni filtro de
+# filas, ni entrada en los mapas de titulo, descarga y pie de RE Impact --y no
+# deberia tenerlas: su camino es otro--.
+#
+# Se excluye de los contratos de RE Impact, NO de los tests. Missed Calls tiene
+# trece propios en test_render_navegador, que comprueban su contenido y no solo
+# que pinte.
+FUERA_DE_LA_MAQUINARIA_RE_IMPACT = {"missed_calls"}
+
+
 def _tipos_del_selector() -> list[str]:
     import re
 
     html = (Path(__file__).parent.parent / "app" / "templates" / "index.html").read_text(encoding="utf-8")
     bloque = html.split('id="re_impact_type"', 1)[1].split("</select>", 1)[0]
-    return re.findall(r'value="([a-z_]+)"', bloque)
+    tipos = re.findall(r'value="([a-z_]+)"', bloque)
+    return [t for t in tipos if t not in FUERA_DE_LA_MAQUINARIA_RE_IMPACT]
 
 
 def _js() -> str:
@@ -1593,7 +1606,8 @@ def test_todos_los_analisis_de_re_impact_tienen_subtitulo():
 
     bloque = re.search(r'id="re_impact_type".*?</select>', html, re.S)
     assert bloque, 'no se encontro el desplegable de RE Impact'
-    tipos = set(re.findall(r'value="([a-z_]+)"', bloque.group(0)))
+    # Missed Calls tiene su propio subtitulo, puesto por el renderizador de RE288.
+    tipos = set(re.findall(r'value="([a-z_]+)"', bloque.group(0))) - FUERA_DE_LA_MAQUINARIA_RE_IMPACT
     assert len(tipos) >= 8, f'solo se detectaron {tipos}'
 
     mapa = js.split('const subtitles = {', 1)[1].split('};', 1)[0]
@@ -1602,3 +1616,68 @@ def test_todos_los_analisis_de_re_impact_tienen_subtitulo():
     faltan = sorted(tipos - con_subtitulo)
 
     assert not faltan, f'analisis sin subtitulo: {faltan}. La tabla sale con el hueco en blanco.'
+
+
+def test_toda_accion_delegada_esta_registrada():
+    """
+    LA PAGINACION DE TRES TABLAS LLEVABA ROTA EN PRODUCCION.
+
+    `changeRE288Page`, `changeRE288TransitionsPage` y
+    `changeRE24ProbabilitiesPage` existian como funciones y sus botones llevaban
+    el `data-accion` correcto, pero nadie las habia registrado en el despachador.
+    Al pulsar, el despachador avisaba por consola --"Accion delegada
+    desconocida"-- y no pasaba nada mas. Nadie mira la consola.
+
+    Este test compara las funciones que PARECEN acciones delegadas con las que
+    estan registradas. Es estatico y cuesta milisegundos.
+    """
+    import re
+
+    js = (Path(__file__).resolve().parent.parent / 'app' / 'static' / 'js'
+          / 'app.js').read_text(encoding='utf-8')
+
+    funciones = set(re.findall(r'^function (change\w*Page|sort\w+)\(', js, re.M))
+    registradas = set(re.findall(r"registrarAccion\('(\w+)'", js))
+
+    sin_registrar = sorted(funciones - registradas)
+
+    assert not sin_registrar, (
+        f'acciones delegadas sin registrar: {sin_registrar}. Sus botones existen '
+        f'y no hacen nada; el fallo solo se ve en la consola del navegador.'
+    )
+
+
+def test_toda_clase_css_que_usa_el_js_existe_en_la_hoja():
+    """
+    `.reliability-marker` se generaba desde el JS y NO estaba definida en el CSS.
+
+    El HTML salia --spans vacios-- y sin regla no pintaban nada: la celda se veia
+    atenuada, que es estilo en linea, y el punto no aparecia en NINGUNA tabla del
+    sitio. Se cambio el caracter U+25CF por spans con CSS porque la tipografia no
+    traia el glifo, y se olvido escribir la regla.
+
+    Una clase que el JS inventa y el CSS no conoce no falla: simplemente no se ve.
+    """
+    import re
+
+    raiz = Path(__file__).resolve().parent.parent
+    js = (raiz / 'app' / 'static' / 'js' / 'app.js').read_text(encoding='utf-8')
+    css = (raiz / 'app' / 'static' / 'css' / 'styles.css').read_text(encoding='utf-8')
+    html = (raiz / 'app' / 'templates' / 'index.html').read_text(encoding='utf-8')
+
+    # Clases propias del proyecto que el JS escribe en atributos class="...".
+    usadas = set()
+    for bloque in re.findall(r'class="([^"{}]+)"', js):
+        usadas.update(bloque.split())
+
+    # Fuera las de Bootstrap y las utilidades: no viven en nuestra hoja.
+    propias = {c for c in usadas
+               if re.match(r'^(reliability|primary-badge|label-cell|svg-cell|sticky-col)', c)}
+
+    sin_definir = sorted(c for c in propias
+                         if f'.{c}' not in css and f'class="{c}' not in html)
+
+    assert not sin_definir, (
+        f'clases usadas por el JS y sin regla en styles.css: {sin_definir}. '
+        f'No fallan: simplemente no se ven.'
+    )

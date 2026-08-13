@@ -1050,6 +1050,8 @@ class TableRequest(BaseModel):
         description="Break-even family for BREAKEVEN_POINTS; sin el se mandan todas",
     )
     analysis_type: str | None = Field(None, pattern="^(sac_bunt|ibb|ph_position|ph_pitcher|platoon_baseline|tto|steal_runs|running_runs|tagging_runs|gidp|missed_calls)$", description="Analysis type for RE_IMPACT. Los tres *_runs expresan en carreras lo que Break-Even Points da como porcentaje (seccion 10 de docs/TODO.md)")
+    display_mode: str | None = Field(None, pattern="^(value|percentage)$", description="Valor o porcentaje para missed_calls")
+    missed_calls_type: str | None = Field(None, pattern="^(strike_called_ball|ball_called_strike|net)$", description="Clase de canto equivocado para missed_calls")
 
 
     # Aqui habia un validador que comprobaba que la temporada cabe en un int32.
@@ -1505,20 +1507,77 @@ async def generate_table(request: Request, table_request: TableRequest):
                 if not len(mc):
                     raise HTTPException(status_code=404,
                                         detail=f"No missed calls data for {desde}-{hasta}")
-                # Media ponderada por lanzamientos, que es como se agrega todo aqui.
-                mc = mc.assign(_w=mc["delta_re"] * mc["n"],
-                               _b=mc["baseline_re"] * mc["n"])
-                g = (mc.groupby(["runners", "outs", "count", "tipo"], as_index=False)
-                       .agg(w=("_w", "sum"), b=("_b", "sum"), n=("n", "sum")))
-                g["delta_re"] = g["w"] / g["n"]
-                g["baseline_re"] = g["b"] / g["n"]
-                g = g.drop(columns=["b"])
+
+                clase = table_request.missed_calls_type or "strike_called_ball"
+                if clase != "net":
+                    mc = mc[mc["tipo"] == clase]
+
+                # SE DEVUELVE CON LA FORMA DE RE288 --una fila por (runners, outs)
+                # y una columna por conteo-- para que la pinte renderRE288Table.
+                #
+                # Es una rejilla de 24 x 12 identica a la suya: mismo rombo con
+                # rowspan, misma paginacion, mismo heatmap, mismas descargas.
+                # Escribir un renderizador aparte obligo a reimplementar a mano
+                # seis piezas que ese ya tenia, y las seis salieron mal.
+                mc = mc.assign(_w=mc["delta_re"] * mc["n"])
+                g = (mc.groupby(["runners", "outs", "count"], as_index=False)
+                       .agg(w=("_w", "sum"), n=("n", "sum")))
+                g["valor"] = g["w"] / g["n"]
+
+                # Porcentaje sobre la expectativa de la situacion ANTES del
+                # lanzamiento, que es el criterio del resto del sitio.
+                if table_request.display_mode == "percentage":
+                    mcb = mc.assign(_b=mc["baseline_re"] * mc["n"])
+                    b = (mcb.groupby(["runners", "outs", "count"], as_index=False)
+                            .agg(bs=("_b", "sum"), n2=("n", "sum")))
+                    b["base"] = b["bs"] / b["n2"]
+                    g = g.merge(b[["runners", "outs", "count", "base"]],
+                                on=["runners", "outs", "count"], how="left")
+                    # LA RAZON, ENTRE 0 Y 1, no entre 0 y 100.
+                    #
+                    # Es lo que se descarga, y un fichero de datos debe traer la
+                    # magnitud cruda: quien lo abra decidira como presentarla. El
+                    # simbolo y el x100 son cosa de la PANTALLA, y se hacen al
+                    # pintar la celda.
+                    g["valor"] = g["valor"] / g["base"].replace(0, pd.NA)
+
+                orden_bases = ["000", "100", "010", "001", "110", "101", "011", "111"]
+                etiquetas = {"000": "Bases empty", "100": "Runner on 1B",
+                             "010": "Runner on 2B", "001": "Runner on 3B",
+                             "110": "Runners on 1B & 2B", "101": "Runners on 1B & 3B",
+                             "011": "Runners on 2B & 3B", "111": "Bases loaded"}
+                # El orden de RE288: del conteo mas favorable al lanzador al mas
+                # favorable al bateador. No es el alfabetico.
+                conteos = ["0-2", "1-2", "0-1", "2-2", "1-1", "0-0",
+                           "1-0", "2-1", "3-2", "2-0", "3-1", "3-0"]
+                por_celda = {(r.runners, int(r.outs), r.count): (r.valor, int(r.n))
+                             for r in g.itertuples()}
+
+                filas = []
+                for runners in orden_bases:
+                    for outs in (0, 1, 2):
+                        fila = {"runners": runners, "label": etiquetas[runners], "outs": outs}
+                        for c in conteos:
+                            v, n = por_celda.get((runners, outs, c), (None, 0))
+                            fila[f"{c}_raw"] = v
+                            fila[f"{c}_n"] = n
+                        filas.append(fila)
+
                 return ORJSONResponse(content={
-                    "matrix_type": "RE_IMPACT",
+                    "matrix_type": "MISSED_CALLS",
                     "analysis_type": "missed_calls",
+                    "missed_calls_type": clase,
+                    "display_mode": table_request.display_mode or "value",
+                    "total_missed_calls": int(g["n"].sum()),
                     "from_season": desde,
                     "to_season": hasta,
-                    "display_data": g.drop(columns=["w"]).to_dict(orient="records"),
+                    "count_columns": conteos,
+                    # renderRE288Table hace headers.slice(2) para sacar los
+                    # conteos: los dos primeros son Runners y Outs, que la
+                    # cabecera pinta aparte con colspan. Sin este campo revienta
+                    # con "Cannot read properties of undefined (reading slice)".
+                    "headers": ["Runners", "Outs"] + conteos,
+                    "rows": filas,
                 })
 
             ensure_data_loaded("re_impact")

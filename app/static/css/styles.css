@@ -346,18 +346,47 @@ main {
     font-size: 1rem !important;
 }
 
-/* Missed Calls: MISMO tamano que RE288.
-   Es una rejilla de 24 x 12 igual que aquella, y el tamano por defecto de la
-   tabla de RE Impact --pensada para 6 filas-- la desborda. Va por id, como la de
-   RE288, porque la tabla es compartida con los demas analisis y una clase
-   afectaria a todos. */
-body.missed-calls-grid #re-impact-table-body,
-body.missed-calls-grid #re-impact-table-body td {
-    font-size: 0.95rem !important;
+/* Marcadores de fiabilidad: un punto = confianza media, dos = baja.
+   
+   EL JS LOS GENERABA Y ESTA REGLA NO EXISTIA. Se cambio el caracter U+25CF por
+   spans con CSS porque la tipografia no traia el glifo y salian rombos blancos...
+   y nunca se escribio el CSS. Resultado: la celda salia atenuada --eso es estilo
+   en linea-- y el punto no se veia en NINGUNA tabla del sitio. */
+/* La celda del heatmap tampoco parte: el numero y sus puntos van juntos. */
+[style*="min-width: 60px"] {
+    white-space: nowrap;
 }
 
-body.missed-calls-grid #re-impact-table-head th {
-    font-size: 1rem !important;
+.reliability-marker {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    margin-left: 3px;
+    vertical-align: middle;
+    /* EL PUNTO NO PUEDE PARTIR LA CELDA EN DOS LINEAS. Con dos puntos el
+       contenido pasaba del ancho de la columna y el numero se iba abajo, que se
+       lee como una tabla rota. */
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.reliability-marker span {
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    /* currentColor: hereda el color del texto de la celda, asi se ve tanto sobre
+       el fondo del heatmap como sobre la celda sin pintar. */
+    background-color: currentColor;
+    opacity: 0.85;
+}
+
+/* El logo del encabezado. Escala con el titulo --que usa display-5 en movil y
+   display-3 en escritorio-- en vez de quedarse fijo y descuadrado. */
+.site-logo {
+    width: clamp(40px, 1.15em, 96px);
+    height: auto;
+    flex-shrink: 0;
 }
 
 /* Buy Me a Coffee - scale utility */

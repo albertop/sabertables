@@ -179,6 +179,8 @@ document.addEventListener('DOMContentLoaded', function() {
 // decide el pipeline (utils/seasons.py), y una copia mas es una copia que puede
 // discrepar. El respaldo solo cubre que la plantilla no los mande.
 const RE288_MIN_SEASON = window.RE288_MIN_SEASON ?? 1989;
+// Statcast: el primer ano con plate_x y plate_z, que es con lo que se mide la zona.
+const MISSED_CALLS_MIN_SEASON = window.MISSED_CALLS_MIN_SEASON ?? 2008;
 const MIN_SEASON = window.MIN_SEASON ?? 1910;
 const MAX_SEASON = window.MAX_SEASON ?? new Date().getUTCFullYear() - 1;
 
@@ -293,12 +295,35 @@ function updateSeasonOptionsForMatrix(matrixType) {
 }
 
 function updateSeasonOptionsForReImpact(analysisType) {
+    // El selector de clase de canto es un PARAMETRO DE LA CONSULTA, como el tipo
+    // de analisis: tiene que verse antes de pulsar Generate, no despues. Por eso
+    // se muestra al elegir el analisis y no al pintar la tabla.
+    const esMissedCalls = analysisType === 'missed_calls';
+    document.getElementById('missed-calls-tipo')?.classList.toggle('d-none', !esMissedCalls);
+    document.getElementById('missed-calls-modo')?.classList.toggle('d-none', !esMissedCalls);
+
     const fromSelect = document.querySelector('select[name="from_season"]');
     const toSelect = document.querySelector('select[name="to_season"]');
     if (!fromSelect || !toSelect || !ORIGINAL_FROM_OPTIONS_HTML || !ORIGINAL_TO_OPTIONS_HTML) return;
 
     const prevFrom = fromSelect.value;
     const prevTo = toSelect.value;
+
+    // Missed Calls arranca en 2008: es el primer ano con coordenadas de
+    // lanzamiento en Statcast. Ofrecer 1910 en el selector promete datos que no
+    // existen -- el sitio llega a 1910 porque Retrosheet llega, pero la zona de
+    // strike se mide con plate_x y plate_z, y esos empiezan aqui.
+    if (analysisType === 'missed_calls') {
+        fromSelect.innerHTML = buildFilteredOptionsHTML(ORIGINAL_FROM_OPTIONS_HTML, MISSED_CALLS_MIN_SEASON);
+        toSelect.innerHTML = buildFilteredOptionsHTML(ORIGINAL_TO_OPTIONS_HTML, MISSED_CALLS_MIN_SEASON);
+        const dentro = (v) => {
+            const n = parseInt(v, 10);
+            return !Number.isNaN(n) && n >= MISSED_CALLS_MIN_SEASON;
+        };
+        fromSelect.value = dentro(prevFrom) ? prevFrom : String(MISSED_CALLS_MIN_SEASON);
+        toSelect.value = dentro(prevTo) ? prevTo : toSelect.options[0]?.value;
+        return;
+    }
 
     // PH for pitchers: restrict to 2021 and earlier
     if (analysisType === 'ph_pitcher') {
@@ -1046,6 +1071,14 @@ function setupEventListeners() {
     }
     if (matrixTypeSelect) {
         matrixTypeSelect.addEventListener('change', (e) => {
+            // El selector de clase de canto solo existe dentro de RE Impact /
+            // Missed Calls. Al cambiar de Table Type hay que esconderlo, o se
+            // queda flotando sobre una tabla que no lo usa.
+            if (e.target.value !== 'RE_IMPACT') {
+                document.getElementById('missed-calls-tipo')?.classList.add('d-none');
+                document.getElementById('missed-calls-modo')?.classList.add('d-none');
+            }
+
             // Update season lists based on selected matrix type
             updateSeasonOptionsForMatrix(e.target.value);
             toggleEventTypeVisibility(e.target.value);
@@ -1243,13 +1276,26 @@ function setupEventListeners() {
         });
     }
 
-    // Missed Calls no pasa por renderReImpactPage: tiene su propio camino.
+    // La clase de canto equivocado se filtra en el SERVIDOR, asi que al cambiarla
+    // se vuelve a pedir la tabla. Repintar en el cliente obligaria a traerse los
+    // dos brazos siempre y a filtrarlos aqui: dos sitios donde decidir lo mismo.
     const missedCallsTipo = document.getElementById('missed-calls-tipo-select');
     if (missedCallsTipo) {
         missedCallsTipo.addEventListener('change', () => {
-            if (currentTableData.re_impact?.analysis_type === 'missed_calls') {
-                renderMissedCallsTable(currentTableData.re_impact);
-            }
+            const t = document.getElementById('re_impact_type');
+            if (t?.value === 'missed_calls') handleGenerateTable();
+        });
+    }
+
+    // El interruptor de Percentages vive en la cabecera de RE Impact, pero esta
+    // tabla la pinta RE288 y no pasa por renderReImpactPage. Se engancha aqui
+    // para que vuelva a pedirla; el porcentaje lo calcula el servidor sobre
+    // baseline_re, igual que el resto del sitio.
+    const missedCallsModo = document.getElementById('missed-calls-modo-select');
+    if (missedCallsModo) {
+        missedCallsModo.addEventListener('change', () => {
+            const t = document.getElementById('re_impact_type');
+            if (t?.value === 'missed_calls') handleGenerateTable();
         });
     }
 }
@@ -1423,7 +1469,7 @@ async function handleGenerateTable() {
     // es ni la ultima ni ninguna que el usuario haya elegido.
     const fromSeason = parseInt(document.querySelector('select[name="from_season"]')?.value) || MAX_SEASON;
     const toSeason = parseInt(document.querySelector('select[name="to_season"]')?.value) || MAX_SEASON;
-    const matrixType = document.querySelector('select[name="matrix_type"]')?.value || 'RE24';
+    let matrixType = document.querySelector('select[name="matrix_type"]')?.value || 'RE24';
     
     // Get event_cd value
     let eventCd = null;
@@ -1584,6 +1630,19 @@ async function handleGenerateTable() {
             const analysisTypeSelect = document.getElementById('re_impact_type');
             if (analysisTypeSelect && analysisTypeSelect.value !== '') {
                 requestBody.analysis_type = analysisTypeSelect.value;
+                if (analysisTypeSelect.value === 'missed_calls') {
+                    requestBody.missed_calls_type =
+                        document.getElementById('missed-calls-tipo-select')?.value
+                        || 'strike_called_ball';
+                    // RE Impact filtra las temporadas EN EL CLIENTE y por eso no
+                    // las manda. Missed Calls las necesita en el servidor: la
+                    // rejilla se agrega alli, sobre 9.977 filas. Sin esto, mover
+                    // el intervalo no cambiaba nada.
+                    requestBody.from_season = fromSeason;
+                    requestBody.to_season = toSeason;
+                    requestBody.display_mode =
+                        document.getElementById('missed-calls-modo-select')?.value || 'value';
+                }
             } else {
                 showError('Please select an RE Impact analysis type');
                 isLoading = false;
@@ -1680,6 +1739,13 @@ async function handleGenerateTable() {
         currentTableData = {};
 
         // Render the table based on matrix type
+        // Missed Calls se ELIGE dentro de RE Impact pero se PINTA con la
+        // maquinaria de RE288: mismo renderizador, mismo contenedor, misma
+        // paginacion, mismo heatmap y las mismas descargas. Por eso el despacho
+        // va por lo que DEVUELVE la respuesta y no por lo que dice el
+        // desplegable, que aqui pone RE_IMPACT.
+        if (data?.matrix_type === 'MISSED_CALLS') matrixType = 'MISSED_CALLS';
+
         if (matrixType === 'RE24') {
             renderRE24Table(data);
             enableDownloadButton('re24');
@@ -1698,6 +1764,13 @@ async function handleGenerateTable() {
         } else if (matrixType === 'WRC_COMPONENTS') {
             renderWRCComponentsTable(data);
             enableDownloadButton('wrc_components');
+        } else if (matrixType === 'MISSED_CALLS') {
+            // MISMO renderizador y MISMO contenedor que RE288. Es una rejilla de
+            // 24 x 12 identica; escribir uno aparte obligo a reimplementar a mano
+            // la paginacion, el heatmap, los porcentajes y las dos descargas, y
+            // las cuatro salieron mal.
+            renderRE288Table(data);
+            enableDownloadButton('re288');
         } else if (matrixType === 'WOBA_COEFFS') {
             renderWOBATable(data);
             enableDownloadButton('woba');
@@ -1776,6 +1849,8 @@ async function handleGenerateTable() {
             document.getElementById('runs-per-win-table-container')?.classList.add('d-none');
         } else if (matrixType === 'WRC_COMPONENTS') {
             document.getElementById('wrc-components-table-container').classList.remove('d-none');
+        } else if (matrixType === 'MISSED_CALLS') {
+            document.getElementById('re288-table-container').classList.remove('d-none');
         } else if (matrixType === 'WOBA_COEFFS') {
             document.getElementById('woba-table-container').classList.remove('d-none');
             document.getElementById('re24-table-container')?.classList.add('d-none');
@@ -2389,6 +2464,19 @@ function renderRE288Table(data) {
             const toSeason = data.to_season;
             
             let titleText = 'RE288 Values';
+            if (data.matrix_type === 'MISSED_CALLS') {
+                const clases = {strike_called_ball: 'Strikes called balls',
+                                ball_called_strike: 'Balls called strikes',
+                                net: 'Net value'};
+                // Missed Calls - <Call type> - <Show as> - <temporadas>, con los
+                // tres en badge azul. El modo va en el titulo porque cambia lo
+                // que significan los numeros: carreras o porcentaje.
+                const modos = {value: 'Runs', percentage: 'Percentage'};
+                titleText = 'Missed Calls - '
+                    + `<span class="primary-badge">${clases[data.missed_calls_type] || ''}</span>`
+                    + ' - '
+                    + `<span class="primary-badge">${modos[data.display_mode] || 'Runs'}</span>`;
+            }
             if (isFrequency) {
                 titleText = 'RE288 Frequencies';
             }
@@ -2419,7 +2507,13 @@ function renderRE288Table(data) {
         }
         
         const re288Subtitle = document.getElementById('re288-table-title-subtitle');
-        if (re288Subtitle) {
+        if (re288Subtitle && data.matrix_type === 'MISSED_CALLS') {
+            // El subtitulo de RE288 describe la expectativa de carreras de la
+            // situacion. Esta tabla mide otra cosa: lo que MUEVE un canto
+            // equivocado desde esa situacion.
+            re288Subtitle.textContent = 'What does a wrong call cost in runs '
+                + '— a strike called a ball, or a ball called a strike?';
+        } else if (re288Subtitle) {
             if (isTransition) {
                 if (isProbability) {
                     re288Subtitle.textContent = 'The probability of the selected transition occurring in a given base-out-count situation.';
@@ -2439,9 +2533,13 @@ function renderRE288Table(data) {
         const pitchCountDiv = document.getElementById('re288-event-count');
         if (pitchCountDiv) {
             const countLabel = isTransition ? 'transitions' : 'pitches';
-            const countText = (data.total_pitches !== null && data.total_pitches !== undefined)
-                ? `${data.total_pitches.toLocaleString()} ${countLabel} processed`
-                : '';
+            // Missed Calls cuenta cantos equivocados, no lanzamientos: los
+            // 353.397 tomados no son la muestra, lo son los 30.839 fallos.
+            const countText = (data.matrix_type === 'MISSED_CALLS')
+                ? `${(data.total_missed_calls || 0).toLocaleString()} missed calls processed`
+                : (data.total_pitches !== null && data.total_pitches !== undefined)
+                    ? `${data.total_pitches.toLocaleString()} ${countLabel} processed`
+                    : '';
             setBreakevenFooterText(pitchCountDiv, countText);
         }
         
@@ -2648,7 +2746,12 @@ function renderRE288Page(heatmapEnabled, minValue, maxValue, reliabilityStats = 
                 const cellHtml = renderMetricCellWithReliability(rawValue, nValue, {
                     formatValue: (v) => isFrequency
                         ? `${(Number(v) * 100).toFixed(2)}%`
-                        : Number(v).toFixed(3).replace(',', '.'),
+                        // Missed Calls en modo Percentage: el servidor manda la
+                        // RAZON, y el x100 y el simbolo se ponen aqui. El fichero
+                        // que se descarga se queda con la razon cruda.
+                        : (data.matrix_type === 'MISSED_CALLS' && data.display_mode === 'percentage')
+                            ? `${(Number(v) * 100).toFixed(1)}%`
+                            : Number(v).toFixed(3).replace(',', '.'),
                     heatmapEnabled,
                     hMin: minValue,
                     hMax: maxValue,
@@ -2751,7 +2854,16 @@ function getDownloadConfig(tableType, data) {
         },
         re288: {
             formatSelectorId: 're288-format-select',
-            tableNamePart: 'RE288_Values'
+            // Missed Calls comparte contenedor y descarga con RE288, asi que el
+            // nombre del fichero tiene que salir de lo que se esta enseñando y no
+            // de la tabla que presta la maquinaria.
+            // El nombre dice QUE trae y EN QUE unidad: dos descargas de Missed
+            // Calls con distinta clase de canto o distinto modo dan numeros
+            // distintos, y sin esto quedan ficheros indistinguibles.
+            tableNamePart: (data?.matrix_type === 'MISSED_CALLS')
+                ? `Missed_Calls_${data.missed_calls_type || ''}_`
+                  + `${data.display_mode === 'percentage' ? 'percentage' : 'runs'}`
+                : 'RE288_Values'
         },
         re288_freq: {
             formatSelectorId: 're288-format-select',
@@ -4266,7 +4378,12 @@ function renderWOBAPage() {
     // Calculate min/max for w* columns if heatmap is enabled
     let minMax = {};
     if (heatmapEnabled) {
-        const wColumns = ['wuBB', 'wHBP', 'w1B', 'w2B', 'w3B', 'wHR'];
+        // League_Avg_OBP y WOBA_Scale entran tambien. El heatmap YA es por
+        // columna --minMax[col]-- y eso es lo que hace que puedan convivir: el
+        // OBP de liga ronda 0,31 y la escala 1,19, asi que con una escala comun
+        // el OBP saldria plano y solo se veria la escala.
+        const wColumns = ['League_Avg_OBP', 'WOBA_Scale',
+                          'wuBB', 'wHBP', 'w1B', 'w2B', 'w3B', 'wHR'];
         wColumns.forEach(col => {
             const values = wobaPagination.data.map(r => r[col]);
             minMax[col] = {
@@ -4290,8 +4407,8 @@ function renderWOBAPage() {
         return `
             <tr>
                 <td class="text-center fw-medium">${row.season}</td>
-                <td class="text-center">${row.League_Avg_OBP.toFixed(3)}</td>
-                <td class="text-center">${row.WOBA_Scale.toFixed(3)}</td>
+                <td class="text-center">${renderCell(row.League_Avg_OBP, 'League_Avg_OBP')}</td>
+                <td class="text-center">${renderCell(row.WOBA_Scale, 'WOBA_Scale')}</td>
                 <td class="text-center">${renderCell(row.wuBB, 'wuBB')}</td>
                 <td class="text-center">${renderCell(row.wHBP, 'wHBP')}</td>
                 <td class="text-center">${renderCell(row.w1B, 'w1B')}</td>
@@ -5098,7 +5215,7 @@ function renderLinearWeightsTable(data, resetPage = true) {
             
             // Add event cell only on first row of group with rowspan
             if (rowIndex === 0) {
-                cells.push(`<td class="text-start fw-medium sticky-column" rowspan="${group.rows.length}">${row.event || ''}</td>`);
+                cells.push(`<td class="text-start fw-medium sticky-col" rowspan="${group.rows.length}">${row.event || ''}</td>`);
             }
             
             // Remove the outs cell - it's no longer displayed in the table
@@ -7161,137 +7278,7 @@ function renderSacBuntRePage() {
     }
 }
 
-// Los 12 conteos EN EL ORDEN DE RE288, que no es el alfabetico: va del conteo mas
-// favorable al lanzador al mas favorable al bateador. Es `sort_order_count` en
-// re288_values, y ordenar por texto rompe la lectura de la tabla --el gradiente
-// deja de significar nada--.
-const MISSED_CALLS_CONTEOS = ['0-2', '1-2', '0-1', '2-2', '1-1', '0-0',
-                              '1-0', '2-1', '3-2', '2-0', '3-1', '3-0'];
-const MISSED_CALLS_BASES = ['000', '100', '010', '001', '110', '101', '011', '111'];
-const MISSED_CALLS_ETIQUETAS = {
-    '000': 'Bases empty', '100': 'Runner on 1B', '010': 'Runner on 2B',
-    '001': 'Runner on 3B', '110': 'Runners on 1B & 2B', '101': 'Runners on 1B & 3B',
-    '011': 'Runners on 2B & 3B', '111': 'Bases loaded'
-};
-
-// Rejilla de 24 x 12, con la forma de RE288.
-//
-// SE DESPACHA ANTES DEL PIVOTE, y por eso no toca ninguna de las seis cadenas de
-// renderReImpactPage: sus datos vienen de missed_calls.parquet, con una dimension
-// mas --el conteo-- y otra forma. Meterlo por el camino comun obligaria a parchear
-// seis sitios para una tabla que no se parece a las otras.
-// Las dos clases de fallo. NO se suman en la misma casilla: valen ~+0,2 y ~-0,2
-// carreras y se cancelan --donde el coste real es 0,215 salia 0,056--. La tabla
-// ensena una a la vez y el control de arriba elige cual.
-const MISSED_CALLS_CLASES = {
-    strike_called_ball: 'Strikes called balls',
-    ball_called_strike: 'Balls called strikes',
-    // El neto: las dos clases sumadas. Se ofrece pero NO es la vista por defecto,
-    // porque tienen signo opuesto y se cancelan casi enteras --donde el coste de
-    // un fallo es 0,215 el neto vale 0,056--. Dice cuanto se DESVIA la zona
-    // cantada del reglamento, que es otra pregunta y tambien interesante.
-    net: 'Net value'
-};
-
-function claseDeFalloElegida() {
-    return document.getElementById('missed-calls-tipo-select')?.value || 'strike_called_ball';
-}
-
-function renderMissedCallsTable(data) {
-    currentTableData.re_impact = data;
-    document.body.classList.add('missed-calls-grid');
-    const selector = document.getElementById('missed-calls-tipo');
-    if (selector) selector.classList.remove('d-none');
-    const head = document.getElementById('re-impact-table-head');
-    const body = document.getElementById('re-impact-table-body');
-    const titulo = document.getElementById('re-impact-table-title');
-    const sub = document.getElementById('re-impact-table-subtitle');
-    if (!head || !body) { console.error('RE Impact table elements not found'); return; }
-
-    const clase = claseDeFalloElegida();
-    const temporadas = data.from_season === data.to_season
-        ? `${data.from_season} Season` : `${data.from_season}-${data.to_season} Seasons`;
-    if (titulo) {
-        titulo.innerHTML = 'RE Impact Analysis - '
-            + `<span class="primary-badge">${MISSED_CALLS_CLASES[clase]}</span> - `
-            + `<span class="primary-badge">${temporadas}</span>`;
-    }
-    // Al estilo de los demas: una pregunta corta. Lo de la zona de reglamento es
-    // una salvedad necesaria, pero cabe en una linea: el parrafo anterior era un
-    // subtitulo de cinco lineas que nadie iba a leer.
-    if (sub) sub.textContent = 'What does a wrong call cost in runs — a strike '
-        + 'called a ball, or a ball called a strike?';
-
-    // Mismas clases que RE288: fs-5 fw-bold y el fondo por variable, no bg-primary.
-    head.innerHTML = '<tr>'
-        + '<th class="text-center fs-5 fw-bold" colspan="2" style="background-color: var(--primary)">Runners</th>'
-        + '<th class="text-center fs-5 fw-bold" style="background-color: var(--primary)">Outs</th>'
-        + MISSED_CALLS_CONTEOS.map(c => {
-            // Igual que RE288: el 0-0 se ensena como "First Pitch", no como '0-0'.
-            const etiqueta = (c === '0-0') ? 'First<br>Pitch' : c;
-            return `<th class="text-center fs-5 fw-bold" style="background-color: var(--primary)">${etiqueta}</th>`;
-          }).join('')
-        + '</tr>';
-
-    // Una casilla es la suma de LOS DOS brazos, ponderada por lanzamientos. Los
-    // dos son fallos y los dos mueven carreras; enseñar solo uno diria la mitad.
-    const porCasilla = {};
-    (data.display_data || [])
-        .filter(f => clase === 'net' || f.tipo === clase)
-        .forEach(f => {
-        const k = `${f.runners}|${f.outs}|${f.count}`;
-        const a = porCasilla[k] || (porCasilla[k] = {w: 0, n: 0});
-        a.w += f.delta_re * f.n;
-        a.n += f.n;
-    });
-
-    const valores = Object.values(porCasilla).map(a => a.w / a.n).filter(Number.isFinite);
-    const min = Math.min(...valores), max = Math.max(...valores);
-    const heatmap = document.getElementById('re-impact-heatmap-toggle')?.checked !== false;
-
-    let html = '';
-    MISSED_CALLS_BASES.forEach(runners => {
-        [0, 1, 2].forEach((outs, i) => {
-            html += `<tr${outs === 2 ? ' style="border-bottom: 2px solid #495057;"' : ''}>`;
-            if (i === 0) {
-                html += `<td class="text-end sticky-col align-middle svg-cell" rowspan="3">`
-                      + `${getBaseStateSVGMarkup(runners)}</td>`;
-                html += `<td class="text-start fs-6 sticky-col align-middle label-cell label-cell-sticky" `
-                      + `rowspan="3">${MISSED_CALLS_ETIQUETAS[runners]}</td>`;
-            }
-            html += `<td class="text-center fs-5">${outs}</td>`;
-            MISSED_CALLS_CONTEOS.forEach(c => {
-                const a = porCasilla[`${runners}|${outs}|${c}`];
-                if (!a || !a.n) { html += '<td class="text-center fs-5">-</td>'; return; }
-                const v = a.w / a.n;
-                const celda = heatmap
-                    ? renderHeatmapBadge(v.toFixed(3), v, min, max)
-                    : v.toFixed(3);
-                html += `<td class="text-center fs-5">${celda}</td>`;
-            });
-            html += '</tr>';
-        });
-    });
-    body.innerHTML = html;
-
-    const conteo = document.getElementById('re-impact-event-count');
-    const total = (data.display_data || [])
-        .filter(f => clase === 'net' || f.tipo === clase)
-        .reduce((a, f) => a + f.n, 0);
-    if (conteo) setBreakevenFooterText(
-        conteo, `${total.toLocaleString()} ${MISSED_CALLS_CLASES[clase].toLowerCase()}`);
-}
-
 function renderReImpactTable(data) {
-    if (data.analysis_type === 'missed_calls') {
-        renderMissedCallsTable(data);
-        return;
-    }
-    // Fuera la marca de tamano y el control: la tabla es compartida y si se
-    // quedan, el siguiente analisis hereda la letra pequena y un selector que no
-    // le corresponde.
-    document.body.classList.remove('missed-calls-grid');
-    document.getElementById('missed-calls-tipo')?.classList.add('d-none');
     // Store data in current table data for downloads and season changes
     const reImpactPercentToggle = document.getElementById('re-impact-percent-toggle');
     if (reImpactPercentToggle) {
@@ -9397,6 +9384,14 @@ function setPaginationPage(paginationState, newPage, totalPages, rerenderFn) {
 // Si se anade una tabla paginada nueva, su changeXPage TIENE que aparecer aqui o
 // sus botones no haran nada -- en silencio, que es como se rompio la primera vez.
 // El test test_todas_las_paginaciones_estan_registradas lo comprueba.
+// FALTABAN TRES, y no por Missed Calls: la paginacion de RE288, la de sus
+// transiciones y la de RE24 Probabilities llevaban rotas en produccion. La
+// funcion existia, el boton llevaba su data-accion, y al pulsarlo el despachador
+// avisaba por consola --"Accion delegada desconocida"-- y no pasaba nada mas.
+// Nadie mira la consola.
+registrarAccion('changeRE288Page', changeRE288Page);
+registrarAccion('changeRE288TransitionsPage', changeRE288TransitionsPage);
+registrarAccion('changeRE24ProbabilitiesPage', changeRE24ProbabilitiesPage);
 registrarAccion('changeFIPPage', changeFIPPage);
 registrarAccion('changeLeverageIndexPage', changeLeverageIndexPage);
 registrarAccion('changeLinearWeightsPage', changeLinearWeightsPage);
